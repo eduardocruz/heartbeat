@@ -1,5 +1,9 @@
 import { Hono } from "hono";
 
-export const runsRoutes = new Hono();
+export function createRunsRoutes(): Hono {
+  const runsRoutes = new Hono();
 
-runsRoutes.get("/", (c) => c.json({ runs: [] }));
+  runsRoutes.get("/", (c) => c.json([]));
+
+  return runsRoutes;
+}

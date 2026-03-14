@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "start": "bun run src/server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "commander": "^13.1.0",
