@@ -1,0 +1,11 @@
+agents:
+  - id: claude-main
+    name: Claude Main
+    type: claude
+    command_template: 'claude -p "{prompt}" --output-format json'
+    heartbeat_enabled: true
+  - id: codex-main
+    name: Codex Main
+    type: codex
+    command_template: 'codex --prompt "{prompt}" --auto-edit'
+    heartbeat_enabled: false
