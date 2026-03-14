@@ -4,8 +4,487 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HeartBeat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        background: radial-gradient(circle at top, #1f2937 0%, #0b1020 45%, #05070f 100%);
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      .status-running::before {
+        content: "";
+        display: inline-block;
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 999px;
+        background: #3b82f6;
+        margin-right: 0.4rem;
+        animation: pulse 1.3s infinite;
+      }
+      @keyframes pulse {
+        0% { opacity: 0.4; transform: scale(0.85); }
+        70% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0.4; transform: scale(0.85); }
+      }
+    </style>
   </head>
-  <body>
-    <div id="app">HeartBeat</div>
+  <body class="min-h-screen text-slate-100">
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <header class="rounded-xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-xl backdrop-blur">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 class="text-2xl font-semibold tracking-tight">HeartBeat</h1>
+            <p class="text-sm text-slate-300">Task orchestration dashboard</p>
+          </div>
+          <nav class="flex gap-2 rounded-lg bg-slate-800/80 p-1" aria-label="Primary">
+            <button data-view="tasks" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Tasks</button>
+            <button data-view="agents" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Agents</button>
+          </nav>
+        </div>
+      </header>
+
+      <main class="mt-5 space-y-6">
+        <section id="tasks-view" class="space-y-4">
+          <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap gap-2" id="status-tabs"></div>
+              <button id="open-task-modal" class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400">New Task</button>
+            </div>
+          </div>
+
+          <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
+                  <tr>
+                    <th class="px-4 py-3">Title</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Agent</th>
+                    <th class="px-4 py-3">Priority</th>
+                    <th class="px-4 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody id="tasks-table" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="agents-view" class="hidden space-y-4">
+          <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <h2 class="text-lg font-semibold">Agent Configuration</h2>
+            <p class="mt-1 text-sm text-slate-300">Manage available executors and command templates.</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <h3 id="agent-form-title" class="mb-3 text-base font-semibold">Add Agent</h3>
+            <form id="agent-form" class="grid gap-3 md:grid-cols-2">
+              <input type="hidden" id="agent-id" />
+              <label class="text-sm">Name
+                <input id="agent-name" required class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
+              </label>
+              <label class="text-sm">Type
+                <input id="agent-type" required class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
+              </label>
+              <label class="text-sm md:col-span-2">Command Template
+                <input id="agent-command" required class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2 mono" />
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input id="agent-active" type="checkbox" checked class="h-4 w-4 rounded border-slate-600 bg-slate-950" />
+                Active
+              </label>
+              <div class="flex items-end gap-2">
+                <button class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Save Agent</button>
+                <button id="reset-agent-form" class="rounded-md border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" type="button">Clear</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
+                  <tr>
+                    <th class="px-4 py-3">Name</th>
+                    <th class="px-4 py-3">Type</th>
+                    <th class="px-4 py-3">Command</th>
+                    <th class="px-4 py-3">Active</th>
+                    <th class="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="agents-table" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="task-modal" class="w-full max-w-xl rounded-xl border border-slate-600 bg-slate-900 p-0 text-slate-100 backdrop:bg-black/70">
+      <form id="task-form" class="space-y-4 p-5">
+        <div class="flex items-start justify-between gap-3">
+          <h2 class="text-lg font-semibold">Create Task</h2>
+          <button id="close-task-modal" type="button" class="rounded-md border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">Close</button>
+        </div>
+        <label class="block text-sm">Title
+          <input id="task-title" required class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
+        </label>
+        <label class="block text-sm">Description
+          <textarea id="task-description" rows="3" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2"></textarea>
+        </label>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="text-sm">Agent
+            <select id="task-agent" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2"></select>
+          </label>
+          <label class="text-sm">Priority
+            <select id="task-priority" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2">
+              <option value="critical">critical</option>
+              <option value="high">high</option>
+              <option value="medium" selected>medium</option>
+              <option value="low">low</option>
+            </select>
+          </label>
+        </div>
+        <label class="block text-sm">Repo URL (optional)
+          <input id="task-repo" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
+        </label>
+        <button class="w-full rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Create Task</button>
+      </form>
+    </dialog>
+
+    <script>
+      const state = {
+        tasks: [],
+        agents: [],
+        expandedTaskId: null,
+        statusFilter: "all",
+        pollHandle: null,
+      };
+
+      const STATUS_TABS = ["all", "pending", "running", "done", "failed"];
+      const STATUS_BADGE = {
+        pending: "bg-slate-600 text-slate-100",
+        assigned: "bg-cyan-700 text-cyan-100",
+        running: "bg-blue-600 text-blue-100 status-running",
+        done: "bg-emerald-600 text-emerald-100",
+        failed: "bg-rose-600 text-rose-100",
+        cancelled: "bg-amber-500 text-amber-100",
+      };
+
+      function api(path, options) {
+        return fetch(path, {
+          headers: { "Content-Type": "application/json", ...(options && options.headers ? options.headers : {}) },
+          ...options,
+        }).then(async (res) => {
+          if (!res.ok) {
+            let detail = "Request failed";
+            try {
+              const body = await res.json();
+              detail = body.error || detail;
+            } catch {
+              // ignore
+            }
+            throw new Error(detail);
+          }
+          return res.status === 204 ? null : res.json();
+        });
+      }
+
+      function openView(view) {
+        const tasksView = document.getElementById("tasks-view");
+        const agentsView = document.getElementById("agents-view");
+        tasksView.classList.toggle("hidden", view !== "tasks");
+        agentsView.classList.toggle("hidden", view !== "agents");
+
+        document.querySelectorAll(".view-tab").forEach((el) => {
+          const active = el.dataset.view === view;
+          el.classList.toggle("bg-sky-500", active);
+          el.classList.toggle("text-slate-900", active);
+          el.classList.toggle("text-slate-200", !active);
+        });
+
+        const url = new URL(window.location.href);
+        if (view === "agents") {
+          url.pathname = "/agents";
+        } else {
+          url.pathname = "/";
+        }
+        window.history.replaceState({}, "", url);
+      }
+
+      function relativeTime(raw) {
+        if (!raw) return "-";
+        const source = new Date(raw.replace(" ", "T") + "Z");
+        const sec = Math.floor((Date.now() - source.getTime()) / 1000);
+        if (!Number.isFinite(sec)) return raw;
+        if (sec < 60) return `${sec}s ago`;
+        const min = Math.floor(sec / 60);
+        if (min < 60) return `${min}m ago`;
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return `${hr}h ago`;
+        const day = Math.floor(hr / 24);
+        return `${day}d ago`;
+      }
+
+      function escapeHtml(value) {
+        const div = document.createElement("div");
+        div.textContent = value || "";
+        return div.innerHTML;
+      }
+
+      function renderStatusTabs() {
+        const root = document.getElementById("status-tabs");
+        root.innerHTML = "";
+        for (const status of STATUS_TABS) {
+          const btn = document.createElement("button");
+          const active = state.statusFilter === status;
+          btn.className = `rounded-md px-3 py-1.5 text-sm font-medium ${
+            active ? "bg-sky-500 text-slate-900" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+          }`;
+          btn.textContent = status === "all" ? "All" : status[0].toUpperCase() + status.slice(1);
+          btn.onclick = () => {
+            state.statusFilter = status;
+            state.expandedTaskId = null;
+            renderStatusTabs();
+            loadTasks();
+          };
+          root.appendChild(btn);
+        }
+      }
+
+      function renderTasks() {
+        const tbody = document.getElementById("tasks-table");
+        tbody.innerHTML = "";
+
+        if (state.tasks.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">No tasks found.</td></tr>';
+          return;
+        }
+
+        for (const task of state.tasks) {
+          const tr = document.createElement("tr");
+          tr.className = "cursor-pointer hover:bg-slate-800/70";
+          tr.innerHTML = `
+            <td class="px-4 py-3 font-medium">${escapeHtml(task.title)}</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${STATUS_BADGE[task.status] || "bg-slate-700 text-slate-100"}">${escapeHtml(task.status)}</span></td>
+            <td class="px-4 py-3">${escapeHtml(task.agent || "-")}</td>
+            <td class="px-4 py-3">${escapeHtml(task.priority || "-")}</td>
+            <td class="px-4 py-3 text-slate-300">${relativeTime(task.created_at)}</td>
+          `;
+          tr.onclick = () => {
+            state.expandedTaskId = state.expandedTaskId === task.id ? null : task.id;
+            renderTasks();
+          };
+          tbody.appendChild(tr);
+
+          if (state.expandedTaskId === task.id) {
+            const details = document.createElement("tr");
+            details.innerHTML = `
+              <td colspan="5" class="space-y-3 bg-slate-950/90 px-4 py-4">
+                <div>
+                  <p class="text-xs uppercase tracking-wide text-slate-400">Description</p>
+                  <p class="mt-1 text-sm text-slate-200">${escapeHtml(task.description || "No description")}</p>
+                </div>
+                <div class="grid gap-3 lg:grid-cols-2">
+                  <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Stdout</p>
+                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-emerald-200">${escapeHtml(task.stdout || "")}</pre>
+                  </div>
+                  <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Stderr</p>
+                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-rose-200">${escapeHtml(task.stderr || "")}</pre>
+                  </div>
+                </div>
+                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3">
+                  <p><span class="text-slate-400">Commit:</span> ${escapeHtml(task.commit_hash || "-")}</p>
+                  <p><span class="text-slate-400">Started:</span> ${escapeHtml(task.started_at || "-")}</p>
+                  <p><span class="text-slate-400">Completed:</span> ${escapeHtml(task.completed_at || "-")}</p>
+                </div>
+              </td>
+            `;
+            tbody.appendChild(details);
+          }
+        }
+      }
+
+      function renderAgents() {
+        const tbody = document.getElementById("agents-table");
+        tbody.innerHTML = "";
+
+        if (state.agents.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">No agents configured.</td></tr>';
+          return;
+        }
+
+        for (const agent of state.agents) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="px-4 py-3 font-medium">${escapeHtml(agent.name)}</td>
+            <td class="px-4 py-3">${escapeHtml(agent.type)}</td>
+            <td class="mono px-4 py-3 text-xs text-slate-300">${escapeHtml(agent.command_template)}</td>
+            <td class="px-4 py-3">${agent.active === 1 ? "yes" : "no"}</td>
+            <td class="px-4 py-3">
+              <div class="flex gap-2">
+                <button data-id="${agent.id}" data-action="edit" class="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">Edit</button>
+                <button data-id="${agent.id}" data-action="delete" class="rounded border border-rose-700 px-2 py-1 text-xs text-rose-200 hover:bg-rose-900/40">Delete</button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        tbody.querySelectorAll("button").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.dataset.id;
+            const action = btn.dataset.action;
+            const agent = state.agents.find((x) => x.id === id);
+            if (!agent) return;
+
+            if (action === "edit") {
+              document.getElementById("agent-id").value = agent.id;
+              document.getElementById("agent-name").value = agent.name;
+              document.getElementById("agent-type").value = agent.type;
+              document.getElementById("agent-command").value = agent.command_template;
+              document.getElementById("agent-active").checked = agent.active === 1;
+              document.getElementById("agent-form-title").textContent = "Edit Agent";
+              return;
+            }
+
+            if (!confirm(`Delete agent ${agent.name}?`)) return;
+            try {
+              await api(`/api/agents/${agent.id}`, { method: "DELETE" });
+              await loadAgents();
+            } catch (error) {
+              alert(error.message);
+            }
+          };
+        });
+      }
+
+      async function loadTasks() {
+        const query = state.statusFilter === "all" ? "" : `?status=${state.statusFilter}`;
+        try {
+          state.tasks = await api(`/api/tasks${query}`);
+          renderTasks();
+          configurePolling();
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      async function loadAgents() {
+        try {
+          state.agents = await api("/api/agents");
+          renderAgents();
+          renderAgentOptions();
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      function renderAgentOptions() {
+        const select = document.getElementById("task-agent");
+        const existing = select.value;
+        select.innerHTML = '<option value="">Unassigned</option>';
+        for (const agent of state.agents) {
+          const opt = document.createElement("option");
+          opt.value = agent.name;
+          opt.textContent = `${agent.name} (${agent.type})`;
+          select.appendChild(opt);
+        }
+        if (existing) {
+          select.value = existing;
+        }
+      }
+
+      function configurePolling() {
+        const hasRunning = state.tasks.some((task) => task.status === "running");
+        if (!hasRunning && state.pollHandle) {
+          clearInterval(state.pollHandle);
+          state.pollHandle = null;
+        }
+        if (hasRunning && !state.pollHandle) {
+          state.pollHandle = setInterval(loadTasks, 5000);
+        }
+      }
+
+      function resetAgentForm() {
+        document.getElementById("agent-id").value = "";
+        document.getElementById("agent-name").value = "";
+        document.getElementById("agent-type").value = "";
+        document.getElementById("agent-command").value = "";
+        document.getElementById("agent-active").checked = true;
+        document.getElementById("agent-form-title").textContent = "Add Agent";
+      }
+
+      document.getElementById("open-task-modal").onclick = () => document.getElementById("task-modal").showModal();
+      document.getElementById("close-task-modal").onclick = () => document.getElementById("task-modal").close();
+      document.getElementById("reset-agent-form").onclick = resetAgentForm;
+
+      document.getElementById("task-form").onsubmit = async (event) => {
+        event.preventDefault();
+        const body = {
+          title: document.getElementById("task-title").value,
+          description: document.getElementById("task-description").value || null,
+          agent: document.getElementById("task-agent").value || null,
+          repo_url: document.getElementById("task-repo").value || null,
+          priority: document.getElementById("task-priority").value,
+        };
+
+        try {
+          await api("/api/tasks", { method: "POST", body: JSON.stringify(body) });
+          document.getElementById("task-form").reset();
+          document.getElementById("task-modal").close();
+          await loadTasks();
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+      document.getElementById("agent-form").onsubmit = async (event) => {
+        event.preventDefault();
+
+        const id = document.getElementById("agent-id").value;
+        const body = {
+          name: document.getElementById("agent-name").value,
+          type: document.getElementById("agent-type").value,
+          command_template: document.getElementById("agent-command").value,
+          active: document.getElementById("agent-active").checked ? 1 : 0,
+        };
+
+        try {
+          if (id) {
+            await api(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+          } else {
+            await api("/api/agents", { method: "POST", body: JSON.stringify(body) });
+          }
+          resetAgentForm();
+          await loadAgents();
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+      document.querySelectorAll(".view-tab").forEach((el) => {
+        el.onclick = () => openView(el.dataset.view);
+      });
+
+      setInterval(() => {
+        if (!document.getElementById("tasks-view").classList.contains("hidden")) {
+          renderTasks();
+        }
+      }, 30000);
+
+      (async function init() {
+        renderStatusTabs();
+        openView(window.location.pathname === "/agents" ? "agents" : "tasks");
+        await loadAgents();
+        await loadTasks();
+      })();
+    </script>
   </body>
 </html>

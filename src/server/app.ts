@@ -5,10 +5,13 @@ import { createAgentsRoutes } from "./routes/agents";
 import { createRunsRoutes } from "./routes/runs";
 import { createTasksRoutes } from "./routes/tasks";
 
+const indexHtmlFile = Bun.file(new URL("../web/index.html", import.meta.url));
+
 export function createApp(db: Database = getDb()): Hono {
   const app = new Hono();
 
-  app.get("/", (c) => c.html("<h1>HeartBeat v0.1.0</h1>"));
+  app.get("/", async (c) => c.html(await indexHtmlFile.text()));
+  app.get("/agents", async (c) => c.html(await indexHtmlFile.text()));
 
   app.route("/api/tasks", createTasksRoutes(db));
   app.route("/api/agents", createAgentsRoutes(db));
