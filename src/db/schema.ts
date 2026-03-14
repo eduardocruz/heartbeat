@@ -28,6 +28,10 @@ export const schema = {
       type TEXT NOT NULL,
       command_template TEXT NOT NULL,
       active INTEGER DEFAULT 1,
+      heartbeat_cron TEXT,
+      heartbeat_prompt TEXT,
+      heartbeat_repo TEXT,
+      heartbeat_enabled INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `,
