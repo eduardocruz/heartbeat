@@ -27,6 +27,7 @@ type TaskRow = {
   exit_code: number | null;
   stdout: string | null;
   stderr: string | null;
+  timeout_seconds: number | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -113,8 +114,8 @@ export function createTasksRoutes(db: Database): Hono {
 
     const result = db
       .query(
-        `INSERT INTO tasks (title, description, status, priority, agent, repo_url, branch, result_summary, commit_hash, exit_code, stdout, stderr, started_at, completed_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        `INSERT INTO tasks (title, description, status, priority, agent, repo_url, branch, result_summary, commit_hash, exit_code, stdout, stderr, timeout_seconds, started_at, completed_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
       )
       .run(
         body.title.trim(),
@@ -129,6 +130,7 @@ export function createTasksRoutes(db: Database): Hono {
         typeof body.exit_code === "number" ? body.exit_code : null,
         optionalString(body.stdout),
         optionalString(body.stderr),
+        typeof body.timeout_seconds === "number" ? body.timeout_seconds : null,
         optionalString(body.started_at),
         optionalString(body.completed_at),
       );
@@ -177,6 +179,7 @@ export function createTasksRoutes(db: Database): Hono {
       "exit_code",
       "stdout",
       "stderr",
+      "timeout_seconds",
       "started_at",
       "completed_at",
     ];
@@ -224,6 +227,15 @@ export function createTasksRoutes(db: Database): Hono {
         }
         updates.push(`${field} = ?`);
         params.push(value);
+        continue;
+      }
+
+      if (field === "timeout_seconds") {
+        if (value !== null && (!Number.isInteger(value) || Number(value) <= 0)) {
+          return c.json({ error: "timeout_seconds must be a positive integer or null" }, 400);
+        }
+        updates.push(`${field} = ?`);
+        params.push((value as number | null) ?? null);
         continue;
       }
 

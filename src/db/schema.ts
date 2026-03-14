@@ -14,6 +14,7 @@ export const schema = {
       exit_code INTEGER,
       stdout TEXT,
       stderr TEXT,
+      timeout_seconds INTEGER,
       started_at TEXT,
       completed_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import { createDatabase, getDefaultDbPath } from "../src/db";
+import { Executor } from "../src/executor";
 import { createApp } from "../src/server/app";
 
 const cleanupPaths: string[] = [];
@@ -91,6 +92,87 @@ describe("database and task API", () => {
     const updated = await patchResp.json();
     expect(updated.status).toBe("running");
     expect(updated.updated_at >= beforeUpdate.updated_at).toBe(true);
+
+    db.close();
+  });
+
+  test("executes tasks sequentially and reports executor status", async () => {
+    const db = createDatabase(":memory:");
+    const executor = new Executor(db);
+    const app = createApp(db, executor);
+
+    const createAgent = async (name: string, commandTemplate: string) => {
+      const resp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          type: "custom",
+          command_template: commandTemplate,
+        }),
+      });
+      expect(resp.status).toBe(201);
+    };
+
+    await createAgent("echo-agent", "echo hello");
+    await createAgent("timeout-agent", "sleep 2");
+    await createAgent("invalid-agent", "definitely-not-a-command");
+
+    const createTask = async (payload: Record<string, unknown>) => {
+      const resp = await app.request("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(resp.status).toBe(201);
+      return resp.json();
+    };
+
+    const doneTask = await createTask({
+      title: "Echo",
+      agent: "echo-agent",
+      timeout_seconds: 10,
+    });
+    const timeoutTask = await createTask({
+      title: "Sleep",
+      agent: "timeout-agent",
+      timeout_seconds: 1,
+    });
+    const invalidTask = await createTask({
+      title: "Invalid",
+      agent: "invalid-agent",
+      timeout_seconds: 10,
+    });
+
+    const statusBeforeResp = await app.request("/api/executor/status");
+    expect(statusBeforeResp.status).toBe(200);
+    const statusBefore = await statusBeforeResp.json();
+    expect(statusBefore.queueLength).toBe(3);
+    expect(statusBefore.runningTasks).toBe(0);
+
+    await executor.checkForWork();
+
+    const doneResp = await app.request(`/api/tasks/${doneTask.id}`);
+    const done = await doneResp.json();
+    expect(done.status).toBe("done");
+    expect(done.stdout).toBe("hello\n");
+
+    const timeoutResp = await app.request(`/api/tasks/${timeoutTask.id}`);
+    const timeout = await timeoutResp.json();
+    expect(timeout.status).toBe("failed");
+    expect(timeout.stderr).toContain("timeout after 1s");
+
+    const invalidResp = await app.request(`/api/tasks/${invalidTask.id}`);
+    const invalid = await invalidResp.json();
+    expect(invalid.status).toBe("failed");
+    expect(typeof invalid.stderr).toBe("string");
+    expect(invalid.stderr.length).toBeGreaterThan(0);
+
+    const statusAfterResp = await app.request("/api/executor/status");
+    const statusAfter = await statusAfterResp.json();
+    expect(statusAfter.queueLength).toBe(0);
+    expect(statusAfter.runningTasks).toBe(0);
+    expect(typeof statusAfter.lastPollAt).toBe("string");
 
     db.close();
   });
