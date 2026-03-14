@@ -13,19 +13,37 @@ const indexHtmlFile = Bun.file(new URL("../web/index.html", import.meta.url));
 type AppOptions = {
   executor?: Executor;
   scheduler?: Scheduler;
+  startedAt?: string;
 };
 
-export function createApp(db: Database = getDb(), options: AppOptions = {}): Hono {
+export function createApp(db: Database = getDb(), options: AppOptions | Executor = {}): Hono {
   const app = new Hono();
+  const resolvedOptions = options instanceof Executor ? { executor: options } : options;
+  const startedAt = resolvedOptions.startedAt ?? new Date().toISOString();
 
   app.get("/", async (c) => c.html(await indexHtmlFile.text()));
   app.get("/agents", async (c) => c.html(await indexHtmlFile.text()));
 
   app.route("/api/tasks", createTasksRoutes(db));
-  app.route("/api/agents", createAgentsRoutes(db, options.scheduler));
+  app.route("/api/agents", createAgentsRoutes(db, resolvedOptions.scheduler));
   app.route("/api/runs", createRunsRoutes());
-  if (options.executor) {
-    app.route("/api/executor", createExecutorRoutes(options.executor));
+  if (resolvedOptions.executor) {
+    app.route(
+      "/api/executor",
+      createExecutorRoutes(resolvedOptions.executor, {
+        startedAt,
+        schedulerStatus: () => {
+          if (!resolvedOptions.scheduler) {
+            return {
+              totalSchedules: 0,
+              nextRuns: [],
+            };
+          }
+
+          return resolvedOptions.scheduler.getStatus();
+        },
+      }),
+    );
   }
 
   return app;

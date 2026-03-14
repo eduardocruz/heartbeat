@@ -1,11 +1,32 @@
 import { Hono } from "hono";
 import { Executor } from "../../executor";
 
-export function createExecutorRoutes(executor: Executor): Hono {
+type ExecutorRouteOptions = {
+  startedAt: string;
+  schedulerStatus?: () => {
+    enabled: boolean;
+    totalSchedules: number;
+    nextRuns: Array<{ agentId: string; agentName: string; nextRun: string | null }>;
+  };
+};
+
+export function createExecutorRoutes(executor: Executor, options: ExecutorRouteOptions): Hono {
   const executorRoutes = new Hono();
 
   executorRoutes.get("/status", (c) => {
-    return c.json(executor.getStatus());
+    const scheduler = options.schedulerStatus?.() ?? {
+      enabled: false,
+      totalSchedules: 0,
+      nextRuns: [],
+    };
+
+    return c.json({
+      ...executor.getStatus(),
+      startedAt: options.startedAt,
+      uptimeSeconds: Math.max(0, Math.floor((Date.now() - Date.parse(options.startedAt)) / 1000)),
+      agentHeartbeats: scheduler.totalSchedules,
+      scheduler,
+    });
   });
 
   return executorRoutes;

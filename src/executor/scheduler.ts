@@ -14,6 +14,11 @@ type SchedulerLogger = Pick<Console, "info" | "warn" | "error">;
 
 export type HeartbeatTriggerResult = "created" | "skipped_running" | "skipped_disabled" | "not_found";
 
+export type SchedulerStatus = {
+  totalSchedules: number;
+  nextRuns: Array<{ agentId: string; agentName: string; nextRun: string | null }>;
+};
+
 export class Scheduler {
   private jobs = new Map<string, Cron>();
 
@@ -50,6 +55,26 @@ export class Scheduler {
 
     const next = job.nextRun();
     return next ? next.toISOString() : null;
+  }
+
+  getStatus(): SchedulerStatus {
+    const nextRuns = Array.from(this.jobs.entries()).map(([agentId, job]) => {
+      const agent = this.db.query("SELECT name FROM agents WHERE id = ? LIMIT 1").get(agentId) as {
+        name: string;
+      } | null;
+      const nextRun = job.nextRun();
+
+      return {
+        agentId,
+        agentName: agent?.name ?? agentId,
+        nextRun: nextRun ? nextRun.toISOString() : null,
+      };
+    });
+
+    return {
+      totalSchedules: this.jobs.size,
+      nextRuns,
+    };
   }
 
   async triggerAgent(agentId: string): Promise<HeartbeatTriggerResult> {

@@ -1,22 +1,54 @@
-import { getDb } from "../db";
+import { createDatabase } from "../db";
 import { Executor } from "../executor";
 import { Scheduler } from "../executor/scheduler";
 import { createApp } from "./app";
 
-const db = getDb();
-
-const executor = new Executor(db);
-executor.start();
-
-const scheduler = new Scheduler(db);
-scheduler.start();
-
-const app = createApp(db, { executor, scheduler });
-const port = 4400;
-
-console.log(`HeartBeat server listening on http://localhost:${port}`);
-
-export default {
-  port,
-  fetch: app.fetch,
+type ServerOptions = {
+  dbPath?: string;
+  port?: number;
 };
+
+export type HeartbeatServer = {
+  port: number;
+  startedAt: string;
+  stop: () => void;
+};
+
+export function startServer(options: ServerOptions = {}): HeartbeatServer {
+  const port = options.port ?? Number.parseInt(process.env.PORT ?? "4400", 10);
+  const db = createDatabase(options.dbPath);
+  const executor = new Executor(db);
+  const scheduler = new Scheduler(db);
+
+  executor.start();
+  scheduler.start();
+
+  const startedAt = new Date().toISOString();
+  const app = createApp(db, {
+    executor,
+    scheduler,
+    startedAt,
+  });
+
+  const server = Bun.serve({
+    port,
+    fetch: app.fetch,
+  });
+
+  console.log(`HeartBeat server listening on http://localhost:${port}`);
+
+  return {
+    port,
+    startedAt,
+    stop: () => {
+      scheduler.stop();
+      executor.stop();
+      server.stop(true);
+      db.close();
+    },
+  };
+}
+
+if (import.meta.main) {
+  startServer();
+}
