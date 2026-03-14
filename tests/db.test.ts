@@ -1,12 +1,17 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 import { afterEach, describe, expect, test } from "bun:test";
 import { createDatabase, getDefaultDbPath } from "../src/db";
 import { Executor } from "../src/executor";
 import { createApp } from "../src/server/app";
 
 const cleanupPaths: string[] = [];
+
+function sh(command: string, cwd?: string): string {
+  return execSync(command, { cwd, stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
+}
 
 afterEach(() => {
   for (const path of cleanupPaths.splice(0)) {
@@ -117,6 +122,7 @@ describe("database and task API", () => {
     await createAgent("echo-agent", "echo hello");
     await createAgent("timeout-agent", "sleep 2");
     await createAgent("invalid-agent", "definitely-not-a-command");
+    await createAgent("git-agent", "pwd");
 
     const createTask = async (payload: Record<string, unknown>) => {
       const resp = await app.request("/api/tasks", {
@@ -143,11 +149,32 @@ describe("database and task API", () => {
       agent: "invalid-agent",
       timeout_seconds: 10,
     });
+    const sourceRepo = mkdtempSync(join(tmpdir(), "heartbeat-source-repo-"));
+    cleanupPaths.push(sourceRepo);
+    sh("git init --initial-branch=main", sourceRepo);
+    writeFileSync(join(sourceRepo, "README.md"), "heartbeat\n");
+    sh("git add README.md", sourceRepo);
+    sh("git -c user.name='Test User' -c user.email='test@example.com' commit -m 'init'", sourceRepo);
+    const repoHead = sh("git rev-parse HEAD", sourceRepo);
+
+    const gitTask = await createTask({
+      title: "Git",
+      agent: "git-agent",
+      repo_url: sourceRepo,
+      timeout_seconds: 10,
+    });
+
+    const missingRepoTask = await createTask({
+      title: "Missing repo",
+      agent: "git-agent",
+      repo_url: join(sourceRepo, "does-not-exist"),
+      timeout_seconds: 10,
+    });
 
     const statusBeforeResp = await app.request("/api/executor/status");
     expect(statusBeforeResp.status).toBe(200);
     const statusBefore = await statusBeforeResp.json();
-    expect(statusBefore.queueLength).toBe(3);
+    expect(statusBefore.queueLength).toBe(5);
     expect(statusBefore.runningTasks).toBe(0);
 
     await executor.checkForWork();
@@ -167,6 +194,17 @@ describe("database and task API", () => {
     expect(invalid.status).toBe("failed");
     expect(typeof invalid.stderr).toBe("string");
     expect(invalid.stderr.length).toBeGreaterThan(0);
+
+    const gitResp = await app.request(`/api/tasks/${gitTask.id}`);
+    const gitDone = await gitResp.json();
+    expect(gitDone.status).toBe("done");
+    expect(gitDone.stdout).toContain(`${join(process.env.HOME ?? "", ".heartbeat", "workspaces", gitTask.id)}`);
+    expect(gitDone.commit_hash).toBe(repoHead);
+
+    const missingRepoResp = await app.request(`/api/tasks/${missingRepoTask.id}`);
+    const missingRepo = await missingRepoResp.json();
+    expect(missingRepo.status).toBe("failed");
+    expect(String(missingRepo.stderr)).toContain("workspace setup failed");
 
     const statusAfterResp = await app.request("/api/executor/status");
     const statusAfter = await statusAfterResp.json();

@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { setupWorkspace, getLatestCommit, cleanupOldWorkspaces } from "./git";
 
 type TaskRow = {
   id: string;
@@ -114,6 +115,7 @@ export class Executor {
     stderr: string,
     timedOut: boolean,
     timeoutSec: number,
+    commitHash: string | null,
   ): void {
     const status = timedOut || exitCode !== 0 ? "failed" : "done";
     const finalStderr = timedOut
@@ -122,9 +124,9 @@ export class Executor {
 
     this.db
       .query(
-        "UPDATE tasks SET status = ?, exit_code = ?, stdout = ?, stderr = ?, completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+        "UPDATE tasks SET status = ?, exit_code = ?, stdout = ?, stderr = ?, commit_hash = ?, completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
       )
-      .run(status, exitCode, stdout, finalStderr, taskId);
+      .run(status, exitCode, stdout, finalStderr, commitHash, taskId);
   }
 
   private failTask(taskId: string, message: string): void {
@@ -157,8 +159,21 @@ export class Executor {
     }
 
     const command = this.buildCommand(agent.command_template, task);
+    let workdir = "/tmp";
+    if (task.repo_url) {
+      try {
+        workdir = await setupWorkspace(task.repo_url, task.id, task.branch ?? "main");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.failTask(task.id, `workspace setup failed: ${message}`);
+        return;
+      }
+    }
+
+    cleanupOldWorkspaces();
+
     const proc = Bun.spawn(["sh", "-lc", command], {
-      cwd: process.cwd(),
+      cwd: workdir,
       stdout: "pipe",
       stderr: "pipe",
       stdin: "ignore",
@@ -178,7 +193,11 @@ export class Executor {
       const stderrPromise = new Response(proc.stderr).text();
       const exitedPromise = proc.exited;
       const [stdout, stderr, exitCode] = await Promise.all([stdoutPromise, stderrPromise, exitedPromise]);
-      this.completeTask(task.id, exitCode, stdout, stderr, timedOut, timeoutSec);
+      let commitHash: string | null = null;
+      if (!timedOut && exitCode === 0 && task.repo_url) {
+        commitHash = await getLatestCommit(workdir);
+      }
+      this.completeTask(task.id, exitCode, stdout, stderr, timedOut, timeoutSec, commitHash);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.failTask(task.id, message);
