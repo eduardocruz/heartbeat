@@ -4,7 +4,6 @@ import { Executor } from "../../executor";
 type ExecutorRouteOptions = {
   startedAt: string;
   schedulerStatus?: () => {
-    enabled: boolean;
     totalSchedules: number;
     nextRuns: Array<{ agentId: string; agentName: string; nextRun: string | null }>;
   };
@@ -15,7 +14,6 @@ export function createExecutorRoutes(executor: Executor, options: ExecutorRouteO
 
   executorRoutes.get("/status", (c) => {
     const scheduler = options.schedulerStatus?.() ?? {
-      enabled: false,
       totalSchedules: 0,
       nextRuns: [],
     };
