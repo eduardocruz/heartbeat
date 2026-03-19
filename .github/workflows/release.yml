@@ -32,6 +32,15 @@ jobs:
           ls -lh dist/
           ./dist/heartbeat-linux-x64 --version
 
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES=$(awk "/^## \[$VERSION\]/,/^## \[/" CHANGELOG.md | head -n -1 | tail -n +2)
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -39,4 +48,4 @@ jobs:
             dist/heartbeat-darwin-arm64
             dist/heartbeat-darwin-x64
             dist/heartbeat-linux-x64
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.notes }}

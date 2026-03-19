@@ -2,6 +2,17 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.1.2] — 2026-03-19
+
+### Fixed
+- Version number now correctly reported by `heartbeat --version` after install and update
+- Post-install PATH instructions made clearer — script now prints `source ~/.zshrc` (or equivalent) prominently
+
+### Changed
+- Install script served from `eduardocruz.com/heartbeat.sh`; binaries downloaded from GitHub Releases
+
+---
+
 ## [0.1.1] — 2026-03-19
 
 ### Added
