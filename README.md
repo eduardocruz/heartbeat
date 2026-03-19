@@ -5,7 +5,7 @@ Create your next self-running company.
 ## Install
 
 ```bash
-curl -fsSL https://eduardocruz.com/heartbeat.sh | bash
+curl -fsSL https://raw.githubusercontent.com/eduardocruz/heartbeat/main/install.sh | bash
 ```
 
 ## What Is This
