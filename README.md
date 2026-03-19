@@ -2,6 +2,14 @@
 
 Create your next self-running company.
 
+## Install
+
+```bash
+curl -fsSL https://eduardocruz.com/heartbeat.sh | bash
+```
+
+## What Is This
+
 HeartBeat is an agent orchestration platform where users create tasks and CLI agents execute them autonomously. The long-term goal is a system that can manage and improve its own development workflow.
 
 ## Status
