@@ -35,4 +35,15 @@ export const schema = {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `,
+  projects: `
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      name TEXT NOT NULL,
+      path TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL DEFAULT 'manual',
+      description TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `,
 };

@@ -2,6 +2,19 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.1.5] — 2026-03-19
+
+### Added
+- **Projects** — new first-class concept in HeartBeat
+- **Scan Machine** — `POST /api/projects/scan` scans `~/.claude/projects/` and imports Claude Code projects automatically
+- `source` field on projects: `claude_code` (imported) or `manual` (created by you) — extensible for `codex` etc. in the future
+- Projects tab in the UI with scan button, project list, source badges, and manual add form
+
+### Fixed
+- Project path double-slash bug in Claude Code directory name parser
+
+---
+
 ## [0.1.4] — 2026-03-19
 
 ### Fixed

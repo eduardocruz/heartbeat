@@ -17,6 +17,7 @@ function ensureColumn(db: Database, table: string, column: string, sqlType: stri
 export function runMigrations(db: Database): void {
   db.exec(schema.tasks);
   db.exec(schema.agents);
+  db.exec(schema.projects);
 
   ensureColumn(db, "tasks", "timeout_seconds", "INTEGER");
   ensureColumn(db, "agents", "heartbeat_cron", "TEXT");
