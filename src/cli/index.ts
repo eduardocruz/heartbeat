@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Command } from "commander";
@@ -106,12 +106,23 @@ function getRuntimeInvocation(): string[] {
   return [process.execPath];
 }
 
+const SAMPLE_CONFIG = `agents:
+  - id: claude-main
+    name: Claude Main
+    type: claude
+    command_template: 'claude -p "{prompt}" --output-format json'
+    heartbeat_enabled: true
+  - id: codex-main
+    name: Codex Main
+    type: codex
+    command_template: 'codex --prompt "{prompt}" --auto-edit'
+    heartbeat_enabled: false
+`;
+
 async function commandInit(): Promise<void> {
   const configPath = resolve(getDefaultConfigPath());
-  const samplePath = new URL("../../examples/heartbeat.yaml", import.meta.url);
-  const sample = readFileSync(samplePath, "utf8");
 
-  writeFileSync(configPath, sample, "utf8");
+  writeFileSync(configPath, SAMPLE_CONFIG, "utf8");
 
   console.log(`Created: ${configPath}`);
   console.log("Next steps:");

@@ -2,6 +2,16 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.1.4] — 2026-03-19
+
+### Fixed
+- `heartbeat init` no longer crashes on installed binary — sample config is now embedded inline instead of read from `examples/heartbeat.yaml` via `new URL()`
+
+### Changed
+- Release workflow is now **manual** (`workflow_dispatch`) — no more accidental releases on every tag push. To release: go to GitHub Actions → Release → Run workflow → enter version number
+
+---
+
 ## [0.1.3] — 2026-03-19
 
 ### Fixed
