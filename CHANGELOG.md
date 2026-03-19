@@ -2,6 +2,13 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.1.3] — 2026-03-19
+
+### Fixed
+- Web UI now loads correctly when running the installed binary — HTML was not being embedded during `bun build --compile`, causing `ENOENT: /$bunfs/web/index.html` on every request
+
+---
+
 ## [0.1.2] — 2026-03-19
 
 ### Fixed
