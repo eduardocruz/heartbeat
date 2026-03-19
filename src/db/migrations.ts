@@ -24,4 +24,8 @@ export function runMigrations(db: Database): void {
   ensureColumn(db, "agents", "heartbeat_prompt", "TEXT");
   ensureColumn(db, "agents", "heartbeat_repo", "TEXT");
   ensureColumn(db, "agents", "heartbeat_enabled", "INTEGER DEFAULT 0");
+  ensureColumn(db, "agents", "avatar_url", "TEXT");
+  ensureColumn(db, "agents", "soul_md", "TEXT");
+  ensureColumn(db, "agents", "role", "TEXT");
+  ensureColumn(db, "agents", "description", "TEXT");
 }

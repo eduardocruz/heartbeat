@@ -16,6 +16,7 @@ type AgentRow = {
   name: string;
   command_template: string;
   active: number;
+  soul_md: string | null;
 };
 
 type ExecutorOptions = {
@@ -146,7 +147,7 @@ export class Executor {
     }
 
     const agent = this.db
-      .query("SELECT name, command_template, active FROM agents WHERE name = ? LIMIT 1")
+      .query("SELECT name, command_template, active, soul_md FROM agents WHERE name = ? LIMIT 1")
       .get(task.agent) as AgentRow | null;
     if (!agent || agent.active !== 1) {
       this.failTask(task.id, `unknown agent: ${task.agent}`);
@@ -158,7 +159,7 @@ export class Executor {
       return;
     }
 
-    const command = this.buildCommand(agent.command_template, task);
+    const { command, prompt } = this.buildCommandWithPrompt(agent.command_template, task, agent.soul_md);
     let workdir = "/tmp";
     if (task.repo_url) {
       try {
@@ -172,11 +173,16 @@ export class Executor {
 
     cleanupOldWorkspaces();
 
-    const proc = Bun.spawn(["sh", "-lc", command], {
+    // For claude --print, pass prompt via stdin to avoid shell quoting issues
+    const isClaudeCommand = command.trimStart().startsWith("claude");
+    const stdinContent = isClaudeCommand ? prompt : null;
+    const finalCommand = isClaudeCommand ? command : command;
+
+    const proc = Bun.spawn(["sh", "-lc", finalCommand], {
       cwd: workdir,
       stdout: "pipe",
       stderr: "pipe",
-      stdin: "ignore",
+      stdin: stdinContent ? new TextEncoder().encode(stdinContent) : "ignore",
     });
 
     this.running.set(task.id, proc);
@@ -207,11 +213,19 @@ export class Executor {
     }
   }
 
-  buildCommand(template: string, task: TaskRow): string {
-    const prompt = `${task.title}${task.description ? `\n${task.description}` : ""}`;
-    return template
+  buildCommand(template: string, task: TaskRow, soulMd?: string | null): string {
+    return this.buildCommandWithPrompt(template, task, soulMd).command;
+  }
+
+  buildCommandWithPrompt(template: string, task: TaskRow, soulMd?: string | null): { command: string; prompt: string } {
+    const taskContent = `${task.title}${task.description ? `\n${task.description}` : ""}`;
+    const prompt = soulMd
+      ? `You are an AI agent with the following identity and values:\n\n${soulMd}\n\n---\n\nTask: ${taskContent}`
+      : taskContent;
+    const command = template
       .replaceAll("{prompt}", prompt)
       .replaceAll("{repo}", task.repo_url ?? "")
       .replaceAll("{branch}", task.branch ?? "main");
+    return { command, prompt };
   }
 }
