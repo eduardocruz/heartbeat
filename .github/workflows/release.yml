@@ -36,12 +36,18 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          NOTES=$(awk "/^## \[$VERSION\]/,/^## \[/" CHANGELOG.md | head -n -1 | tail -n +2)
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          python3 -c "
+          import sys, re, os
+          version = '$VERSION'
+          text = open('CHANGELOG.md').read()
+          pattern = r'## \[' + re.escape(version) + r'\].*?\n(.*?)(?=\n## \[|\Z)'
+          m = re.search(pattern, text, re.DOTALL)
+          notes = m.group(1).strip() if m else ''
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'notes<<EOF\n{notes}\nEOF\n')
+          "
 
-      - name: Create tag and GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
