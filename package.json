@@ -4,12 +4,18 @@
   "type": "module",
   "private": true,
   "bin": {
-    "heartbeat": "./src/index.ts"
+    "heartbeat": "./src/cli/index.ts"
   },
   "scripts": {
-    "start": "bun run src/server/index.ts",
+    "start": "bun run src/cli/index.ts start",
+    "dev": "bun run src/server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "build:cli": "bun build --compile src/cli/index.ts --outfile dist/heartbeat",
+    "build:cli:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 src/cli/index.ts --outfile dist/heartbeat-darwin-arm64",
+    "build:cli:darwin-x64": "bun build --compile --target=bun-darwin-x64 src/cli/index.ts --outfile dist/heartbeat-darwin-x64",
+    "build:cli:linux-x64": "bun build --compile --target=bun-linux-x64 src/cli/index.ts --outfile dist/heartbeat-linux-x64",
+    "build:release": "bash scripts/build-release.sh"
   },
   "dependencies": {
     "commander": "^13.1.0",
