@@ -8,6 +8,8 @@ import { createExecutorRoutes } from "./routes/executor";
 import { createRunsRoutes } from "./routes/runs";
 import { createProjectsRoutes } from "./routes/projects";
 import { createTasksRoutes } from "./routes/tasks";
+import { createTimelineRoutes } from "./routes/timeline";
+import { createHeatmapRoutes } from "./routes/heatmap";
 
 import indexHtml from "../web/index.html" with { type: "text" };
 
@@ -25,11 +27,14 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   app.get("/", (c) => c.html(indexHtml));
   app.get("/agents", (c) => c.html(indexHtml));
   app.get("/projects", (c) => c.html(indexHtml));
+  app.get("/timeline", (c) => c.html(indexHtml));
 
   app.route("/api/tasks", createTasksRoutes(db));
   app.route("/api/agents", createAgentsRoutes(db, resolvedOptions.scheduler));
   app.route("/api/projects", createProjectsRoutes(db));
   app.route("/api/runs", createRunsRoutes());
+  app.route("/api/timeline", createTimelineRoutes());
+  app.route("/api/heatmap", createHeatmapRoutes());
   if (resolvedOptions.executor) {
     app.route(
       "/api/executor",

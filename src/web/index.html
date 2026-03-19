@@ -58,6 +58,7 @@
             <button data-view="tasks" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Tasks</button>
             <button data-view="agents" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Agents</button>
             <button data-view="projects" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Projects</button>
+            <button data-view="timeline" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Timeline</button>
           </nav>
         </div>
       </header>
@@ -131,6 +132,7 @@
                     <th class="px-4 py-3">Name</th>
                     <th class="px-4 py-3">Path</th>
                     <th class="px-4 py-3">Source</th>
+                    <th class="px-4 py-3">Usage</th>
                     <th class="px-4 py-3">Created</th>
                     <th class="px-4 py-3">Actions</th>
                   </tr>
@@ -202,6 +204,23 @@
             </div>
           </div>
         </section>
+
+        <section id="timeline-view" class="hidden space-y-4">
+          <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">Timeline</h2>
+                <p class="mt-1 text-sm text-slate-300">Global activity from ~/.claude/history.jsonl</p>
+              </div>
+            </div>
+          </div>
+          <div id="heatmap-container" class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <div class="text-sm text-slate-400">Loading heatmap...</div>
+          </div>
+          <div id="timeline-content" class="space-y-4">
+            <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-6 text-center text-slate-400">Loading timeline...</div>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -243,6 +262,8 @@
         agents: [],
         projects: [],
         expandedTaskId: null,
+        expandedProjectId: null,
+        showAllSessions: null,
         statusFilter: "all",
         pollHandle: null,
       };
@@ -280,6 +301,7 @@
         document.getElementById("tasks-view").classList.toggle("hidden", view !== "tasks");
         document.getElementById("agents-view").classList.toggle("hidden", view !== "agents");
         document.getElementById("projects-view").classList.toggle("hidden", view !== "projects");
+        document.getElementById("timeline-view").classList.toggle("hidden", view !== "timeline");
 
         document.querySelectorAll(".view-tab").forEach((el) => {
           const active = el.dataset.view === view;
@@ -291,10 +313,12 @@
         const url = new URL(window.location.href);
         if (view === "agents") url.pathname = "/agents";
         else if (view === "projects") url.pathname = "/projects";
+        else if (view === "timeline") url.pathname = "/timeline";
         else url.pathname = "/";
         window.history.replaceState({}, "", url);
 
         if (view === "projects") loadProjects();
+        if (view === "timeline") loadTimeline();
       }
 
       function relativeTime(raw) {
@@ -590,7 +614,7 @@
         tbody.innerHTML = "";
 
         if (state.projects.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">No projects yet. Click Scan Machine to import from Claude Code.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No projects yet. Click Scan Machine to import from Claude Code.</td></tr>';
           return;
         }
 
@@ -598,20 +622,60 @@
           const tr = document.createElement("tr");
           const badge = SOURCE_BADGE[project.source] || SOURCE_BADGE.manual;
           const label = SOURCE_LABEL[project.source] || project.source;
+          const isClaudeCode = project.source === "claude_code";
+          tr.className = isClaudeCode ? "cursor-pointer hover:bg-slate-800/70" : "";
+          const usageCell = isClaudeCode
+            ? `<td class="px-4 py-3 text-slate-300 text-xs" id="usage-cell-${project.id}">...</td>`
+            : `<td class="px-4 py-3 text-slate-400 text-xs">-</td>`;
           tr.innerHTML = `
-            <td class="px-4 py-3 font-medium">${escapeHtml(project.name)}</td>
+            <td class="px-4 py-3 font-medium">${isClaudeCode ? '<span class="text-xs text-slate-400 mr-1">' + (state.expandedProjectId === project.id ? '&#9660;' : '&#9654;') + '</span>' : ''}${escapeHtml(project.name)}</td>
             <td class="px-4 py-3 mono text-xs text-slate-300">${escapeHtml(project.path)}</td>
             <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge}">${label}</span></td>
+            ${usageCell}
             <td class="px-4 py-3 text-slate-300">${relativeTime(project.created_at)}</td>
             <td class="px-4 py-3">
               <button data-id="${project.id}" class="project-delete rounded border border-rose-700 px-2 py-1 text-xs text-rose-200 hover:bg-rose-900/40">Delete</button>
             </td>
           `;
+          if (isClaudeCode) {
+            tr.onclick = (e) => {
+              if (e.target.closest(".project-delete")) return;
+              const expanding = state.expandedProjectId !== project.id;
+              state.expandedProjectId = expanding ? project.id : null;
+              renderProjects();
+              if (expanding) {
+                loadProjectSessions(project.id);
+                loadProjectUsage(project.id);
+                loadProjectTools(project.id);
+                loadProjectFiles(project.id);
+              }
+            };
+          }
           tbody.appendChild(tr);
+
+          if (state.expandedProjectId === project.id && isClaudeCode) {
+            const detailRow = document.createElement("tr");
+            detailRow.innerHTML = `
+              <td colspan="6" class="bg-slate-950/90 px-4 py-4">
+                <div id="usage-detail-${project.id}" class="mb-3 text-sm text-slate-400">Loading usage...</div>
+                <div id="tools-detail-${project.id}" class="mb-3 text-sm text-slate-400">Loading tools...</div>
+                <div id="files-detail-${project.id}" class="mb-3 text-sm text-slate-400">Loading hot files...</div>
+                <div id="sessions-${project.id}" class="text-sm text-slate-400">Loading sessions...</div>
+              </td>
+            `;
+            tbody.appendChild(detailRow);
+          }
+        }
+
+        for (const project of state.projects) {
+          if (project.source === "claude_code") {
+            loadProjectUsageCell(project.id);
+          }
         }
 
         tbody.querySelectorAll(".project-delete").forEach((btn) => {
-          btn.onclick = async () => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
             const id = btn.dataset.id;
             const project = state.projects.find((p) => p.id === id);
             if (!project || !confirm(`Delete project ${project.name}?`)) return;
@@ -623,6 +687,173 @@
             }
           };
         });
+      }
+
+      async function loadProjectSessions(projectId) {
+        const container = document.getElementById(`sessions-${projectId}`);
+        if (!container) return;
+        try {
+          const sessions = await api(`/api/projects/${projectId}/sessions`);
+          if (sessions.length === 0) {
+            container.innerHTML = '<p class="text-slate-400">No Claude Code sessions found for this project.</p>';
+            return;
+          }
+          const showAll = state.showAllSessions === projectId;
+          const visible = showAll ? sessions : sessions.slice(0, 5);
+          let html = `
+            <table class="min-w-full text-left text-sm">
+              <thead class="text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th class="px-3 py-2">Last Active</th>
+                  <th class="px-3 py-2">Messages</th>
+                  <th class="px-3 py-2">First Message</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800">
+          `;
+          for (const s of visible) {
+            html += `
+              <tr>
+                <td class="px-3 py-2 text-slate-300">${relativeTime(s.lastActiveAt)}</td>
+                <td class="px-3 py-2 text-slate-300">${s.messageCount}</td>
+                <td class="px-3 py-2 text-slate-300 truncate max-w-md">${escapeHtml(s.firstMessage || '-')}</td>
+              </tr>
+            `;
+          }
+          html += '</tbody></table>';
+          if (!showAll && sessions.length > 5) {
+            html += `<button id="show-more-sessions-${projectId}" class="mt-2 text-xs text-sky-400 hover:text-sky-300">Show ${sessions.length - 5} more sessions</button>`;
+          }
+          container.innerHTML = html;
+          const showMoreBtn = document.getElementById(`show-more-sessions-${projectId}`);
+          if (showMoreBtn) {
+            showMoreBtn.onclick = (e) => {
+              e.stopPropagation();
+              state.showAllSessions = projectId;
+              loadProjectSessions(projectId);
+            };
+          }
+        } catch (error) {
+          container.innerHTML = `<p class="text-rose-300">Failed to load sessions: ${escapeHtml(error.message)}</p>`;
+        }
+      }
+
+      async function loadProjectUsageCell(projectId) {
+        const cell = document.getElementById(`usage-cell-${projectId}`);
+        if (!cell) return;
+        try {
+          const usage = await api(`/api/projects/${projectId}/usage`);
+          if (usage.estimatedCostUsd === 0 && usage.sessionCount === 0) {
+            cell.textContent = 'No usage data';
+          } else {
+            cell.innerHTML = `<span class="text-emerald-300 font-medium">~$${usage.estimatedCostUsd.toFixed(2)}</span>`;
+          }
+        } catch {
+          cell.textContent = '-';
+        }
+      }
+
+      function formatTokenCount(n) {
+        if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+        if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+        return String(n);
+      }
+
+      async function loadProjectUsage(projectId) {
+        const detailContainer = document.getElementById(`usage-detail-${projectId}`);
+        const cellContainer = document.getElementById(`usage-cell-${projectId}`);
+        try {
+          const usage = await api(`/api/projects/${projectId}/usage`);
+          if (usage.estimatedCostUsd === 0 && usage.sessionCount === 0) {
+            if (detailContainer) detailContainer.innerHTML = '<p class="text-slate-400">No usage data</p>';
+            if (cellContainer) cellContainer.textContent = 'No usage data';
+            return;
+          }
+          const cost = `~$${usage.estimatedCostUsd.toFixed(2)}`;
+          if (cellContainer) {
+            cellContainer.innerHTML = `<span class="text-emerald-300 font-medium">${cost}</span>`;
+          }
+          if (detailContainer) {
+            detailContainer.innerHTML = `
+              <div class="flex flex-wrap gap-4 items-center">
+                <span class="text-emerald-300 font-semibold text-base">${cost} estimated cost</span>
+                <span class="text-slate-400">${formatTokenCount(usage.totalInputTokens)} input</span>
+                <span class="text-slate-400">${formatTokenCount(usage.totalOutputTokens)} output</span>
+                <span class="text-slate-400">${formatTokenCount(usage.totalCacheCreationTokens + usage.totalCacheReadTokens)} cache</span>
+                <span class="text-slate-500">${usage.sessionCount} sessions with usage</span>
+              </div>
+            `;
+          }
+        } catch (error) {
+          if (detailContainer) detailContainer.innerHTML = `<p class="text-rose-300">Failed to load usage</p>`;
+          if (cellContainer) cellContainer.textContent = '-';
+        }
+      }
+
+      async function loadProjectTools(projectId) {
+        const container = document.getElementById(`tools-detail-${projectId}`);
+        if (!container) return;
+        try {
+          const data = await api(`/api/projects/${projectId}/tools`);
+          if (data.total === 0) {
+            container.innerHTML = '<p class="text-slate-400">No tool usage data</p>';
+            return;
+          }
+          const top5 = data.breakdown.slice(0, 5);
+          const maxCount = top5[0].count;
+          let html = '<p class="text-xs uppercase tracking-wide text-slate-400 mb-2">Top Tools</p>';
+          html += '<div class="space-y-1.5 max-w-lg">';
+          for (const t of top5) {
+            const pct = maxCount > 0 ? Math.round((t.count / maxCount) * 100) : 0;
+            html += `
+              <div class="flex items-center gap-2 text-xs">
+                <span class="w-16 text-right text-slate-300 mono shrink-0">${escapeHtml(t.tool)}</span>
+                <div class="flex-1 h-4 bg-slate-800 rounded overflow-hidden">
+                  <div class="h-full bg-sky-500/70 rounded" style="width:${pct}%"></div>
+                </div>
+                <span class="w-20 text-slate-400 shrink-0">${t.count} (${t.percentage}%)</span>
+              </div>
+            `;
+          }
+          html += '</div>';
+          if (data.breakdown.length > 5) {
+            html += `<p class="mt-1 text-xs text-slate-500">and ${data.breakdown.length - 5} more tools (${data.total} total calls)</p>`;
+          }
+          container.innerHTML = html;
+        } catch (error) {
+          container.innerHTML = `<p class="text-rose-300">Failed to load tools</p>`;
+        }
+      }
+
+      async function loadProjectFiles(projectId) {
+        const container = document.getElementById(`files-detail-${projectId}`);
+        if (!container) return;
+        try {
+          const data = await api(`/api/projects/${projectId}/files`);
+          if (data.total === 0) {
+            container.innerHTML = '<p class="text-slate-400">No file access data</p>';
+            return;
+          }
+          let html = '<p class="text-xs uppercase tracking-wide text-slate-400 mb-2">Hot Files</p>';
+          html += '<div class="space-y-1 max-w-lg">';
+          for (let i = 0; i < data.topFiles.length; i++) {
+            const f = data.topFiles[i];
+            html += `
+              <div class="flex items-center gap-2 text-xs">
+                <span class="w-5 text-right text-slate-500 shrink-0">${i + 1}.</span>
+                <span class="mono text-slate-300 truncate">${escapeHtml(f.shortPath)}</span>
+                <span class="ml-auto shrink-0 rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">${f.count}</span>
+              </div>
+            `;
+          }
+          html += '</div>';
+          if (data.total > 0 && data.topFiles.length < data.total) {
+            html += `<p class="mt-1 text-xs text-slate-500">${data.total} total file operations across all files</p>`;
+          }
+          container.innerHTML = html;
+        } catch (error) {
+          container.innerHTML = `<p class="text-rose-300">Failed to load files</p>`;
+        }
       }
 
       async function loadProjects() {
@@ -689,10 +920,120 @@
         }
       }, 30000);
 
+      let timelineDaysLoaded = 30;
+
+      const HEATMAP_COLORS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+
+      async function loadHeatmap() {
+        const container = document.getElementById("heatmap-container");
+        try {
+          const data = await api("/api/heatmap?days=90");
+          if (data.days.length === 0) {
+            container.innerHTML = '<div class="text-sm text-slate-400">No activity data</div>';
+            return;
+          }
+
+          // Build grid: 7 rows (Sun-Sat) x N columns (weeks)
+          // Pad the start so column 0 begins on Sunday
+          const firstDate = new Date(data.days[0].date + "T00:00:00");
+          const startDow = firstDate.getDay(); // 0=Sun
+          const padded = [];
+          for (let i = 0; i < startDow; i++) padded.push(null);
+          for (const d of data.days) padded.push(d);
+
+          const weeks = Math.ceil(padded.length / 7);
+          const dayLabels = ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'];
+
+          let html = '<div style="overflow-x:auto">';
+          html += '<div style="display:inline-flex;gap:2px;align-items:flex-start">';
+
+          // Day labels column
+          html += '<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">';
+          for (let row = 0; row < 7; row++) {
+            html += `<div style="width:24px;height:10px;line-height:10px;font-size:9px;color:#94a3b8;text-align:right">${dayLabels[row]}</div>`;
+          }
+          html += '</div>';
+
+          // Week columns
+          for (let col = 0; col < weeks; col++) {
+            html += '<div style="display:flex;flex-direction:column;gap:2px">';
+            for (let row = 0; row < 7; row++) {
+              const idx = col * 7 + row;
+              const day = idx < padded.length ? padded[idx] : null;
+              if (day) {
+                const color = HEATMAP_COLORS[day.intensity];
+                const label = formatDateHeader(day.date) + ': ' + day.count + ' session' + (day.count !== 1 ? 's' : '');
+                html += `<div title="${escapeHtml(label)}" style="width:10px;height:10px;background:${color};border-radius:2px"></div>`;
+              } else {
+                html += '<div style="width:10px;height:10px"></div>';
+              }
+            }
+            html += '</div>';
+          }
+
+          html += '</div></div>';
+          html += `<p class="mt-3 text-xs text-slate-400">${data.totalSessions} session${data.totalSessions !== 1 ? 's' : ''} in the last 90 days &middot; ${data.activeDays} active day${data.activeDays !== 1 ? 's' : ''}</p>`;
+          container.innerHTML = html;
+        } catch (error) {
+          container.innerHTML = `<div class="text-sm text-rose-300">Failed to load heatmap: ${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      function formatDateHeader(dateStr) {
+        const d = new Date(dateStr + "T00:00:00");
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      }
+
+      async function loadTimeline(days) {
+        if (days) timelineDaysLoaded = days;
+        loadHeatmap();
+        const container = document.getElementById("timeline-content");
+        try {
+          const timeline = await api(`/api/timeline?days=${timelineDaysLoaded}`);
+          if (timeline.length === 0) {
+            container.innerHTML = '<div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-6 text-center text-slate-400">No activity found in ~/.claude/history.jsonl</div>';
+            return;
+          }
+          let html = '';
+          for (const day of timeline) {
+            html += `<div class="rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl overflow-hidden">`;
+            html += `<div class="bg-slate-800/90 px-4 py-3 flex items-center justify-between">`;
+            html += `<span class="font-semibold text-sm">${escapeHtml(formatDateHeader(day.date))}</span>`;
+            html += `<span class="text-xs text-slate-400">${day.totalSessions} session${day.totalSessions !== 1 ? 's' : ''}</span>`;
+            html += `</div>`;
+            html += `<div class="divide-y divide-slate-800">`;
+            for (const p of day.projects) {
+              const preview = p.firstMessage ? escapeHtml(p.firstMessage.slice(0, 100)) : '';
+              html += `<div class="px-4 py-3 flex items-start gap-3">`;
+              html += `<span class="mt-1.5 block h-2 w-2 shrink-0 rounded-full bg-sky-400"></span>`;
+              html += `<div class="min-w-0">`;
+              html += `<span class="font-medium text-sm">${escapeHtml(p.projectName)}</span>`;
+              html += `<span class="ml-2 text-xs text-slate-400">(${p.sessionCount} session${p.sessionCount !== 1 ? 's' : ''})</span>`;
+              if (preview) {
+                html += `<p class="mt-0.5 text-xs text-slate-400 truncate">${preview}</p>`;
+              }
+              html += `</div>`;
+              html += `</div>`;
+            }
+            html += `</div></div>`;
+          }
+          if (timelineDaysLoaded < 90) {
+            html += `<div class="text-center"><button id="timeline-load-more" class="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Load more</button></div>`;
+          }
+          container.innerHTML = html;
+          const loadMoreBtn = document.getElementById("timeline-load-more");
+          if (loadMoreBtn) {
+            loadMoreBtn.onclick = () => loadTimeline(90);
+          }
+        } catch (error) {
+          container.innerHTML = `<div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-6 text-center text-rose-300">Failed to load timeline: ${escapeHtml(error.message)}</div>`;
+        }
+      }
+
       (async function init() {
         renderStatusTabs();
         const path = window.location.pathname;
-        openView(path === "/agents" ? "agents" : path === "/projects" ? "projects" : "tasks");
+        openView(path === "/agents" ? "agents" : path === "/projects" ? "projects" : path === "/timeline" ? "timeline" : "tasks");
         await loadAgents();
         await loadTasks();
       })();

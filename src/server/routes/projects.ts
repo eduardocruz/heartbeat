@@ -1,6 +1,9 @@
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
-import { scanClaudeProjects } from "../../projects/scanner";
+import { scanClaudeProjects, scanProjectSessions } from "../../projects/scanner";
+import { scanProjectUsage } from "../../projects/usage";
+import { scanProjectTools } from "../../projects/tools";
+import { scanProjectFiles } from "../../projects/files";
 
 type ProjectRow = {
   id: string;
@@ -76,6 +79,46 @@ export function createProjectsRoutes(db: Database): Hono {
       }
       throw err;
     }
+  });
+
+  routes.get("/:id/sessions", (c) => {
+    const id = c.req.param("id");
+    const project = db.query("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow | null;
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+    const sessions = scanProjectSessions(project.path);
+    return c.json(sessions);
+  });
+
+  routes.get("/:id/usage", (c) => {
+    const id = c.req.param("id");
+    const project = db.query("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow | null;
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+    const usage = scanProjectUsage(project.path);
+    return c.json(usage);
+  });
+
+  routes.get("/:id/tools", (c) => {
+    const id = c.req.param("id");
+    const project = db.query("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow | null;
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+    const tools = scanProjectTools(project.path);
+    return c.json(tools);
+  });
+
+  routes.get("/:id/files", (c) => {
+    const id = c.req.param("id");
+    const project = db.query("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow | null;
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+    const files = scanProjectFiles(project.path);
+    return c.json(files);
   });
 
   routes.delete("/:id", (c) => {

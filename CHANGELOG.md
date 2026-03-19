@@ -2,6 +2,18 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.0] — 2026-03-19
+
+### Added
+- **Session history per project** — expandable project rows show Claude Code sessions: last active, message count, first message preview (#1)
+- **Token usage & cost estimation** — input/output/cache tokens aggregated per project with estimated USD cost (#2)
+- **Tool usage breakdown** — horizontal bar chart of Read/Write/Edit/Bash/Agent usage per project (#3)
+- **Hot files** — top 10 most-accessed files per project ranked by Read+Write+Edit operations (#4)
+- **Global timeline** — date-grouped activity log from `~/.claude/history.jsonl` showing which projects were active each day (#5)
+- **Activity heatmap** — GitHub-style contribution heatmap (90 days) in the Timeline tab (#6)
+
+---
+
 ## [0.1.5] — 2026-03-19
 
 ### Added
