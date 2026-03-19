@@ -209,6 +209,12 @@ async function commandStart(options: { port: string; db: string; state: string; 
   throw new Error(`Daemon failed to start. Check ${logPath}`);
 }
 
+
+async function commandRestart(options: { port: string; db: string; state: string; log: string }): Promise<void> {
+  await commandStop({ state: options.state });
+  await commandStart(options);
+}
+
 async function commandStatus(options: { state: string }): Promise<void> {
   const statePath = resolve(options.state);
   const state = readDaemonState(statePath);
@@ -332,6 +338,17 @@ export async function runCli(argv = process.argv): Promise<void> {
     .option("--state <path>", "Daemon state file", defaultStatePath)
     .action((options) => {
       void commandStop(options);
+    });
+
+  program
+    .command("restart")
+    .description("Restart the HeartBeat daemon")
+    .option("--port <port>", "Server port", process.env.PORT ?? DEFAULT_PORT)
+    .option("--db <path>", "SQLite database path", defaultDbPath)
+    .option("--state <path>", "Daemon state file", defaultStatePath)
+    .option("--log <path>", "Daemon log file", defaultLogPath)
+    .action((options) => {
+      void commandRestart(options);
     });
 
   program

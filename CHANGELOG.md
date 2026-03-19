@@ -84,6 +84,13 @@ All notable changes to HeartBeat are documented here.
 - Curl install command (`curl -fsSL https://eduardocruz.com/heartbeat.sh | bash`)
 - Initial Bun + Hono + React scaffold
 
+## [0.2.2] — 2026-03-19
+
+### Added
+- `heartbeat restart` command — stops and starts the daemon in one step
+
+---
+
 ## [0.2.1] — 2026-03-19
 
 ### Added
