@@ -109,6 +109,13 @@ main() {
 
   "$install_dir/$BINARY_NAME" --version
   rm -rf "$tmpdir"
+
+  echo ""
+  echo "✅ HeartBeat installed! To start using it:"
+  echo ""
+  echo "   source ~/.zshrc   (or open a new terminal)"
+  echo "   heartbeat start"
+  echo ""
 }
 
 main "$@"
