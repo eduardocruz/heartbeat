@@ -143,9 +143,10 @@ export function syncTaskDependencies(db: Database, taskId: string, blockerIds: s
 
   const existingRows = getDependencyRows(db, taskId);
   const existingIds = new Set(existingRows.map((row) => row.blocker_task_id));
+  const nextIds = new Set(blockerIds);
 
   for (const row of existingRows) {
-    if (!blockerIds.includes(row.blocker_task_id)) {
+    if (!nextIds.has(row.blocker_task_id)) {
       db.query("DELETE FROM task_dependencies WHERE task_id = ? AND blocker_task_id = ?").run(taskId, row.blocker_task_id);
     }
   }

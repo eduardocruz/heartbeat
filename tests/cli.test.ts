@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe("cli", () => {
-  test("shows agent details and assigned issues by name via details alias", async () => {
+  test("shows agent details and assigned issues", async () => {
     const db = createDatabase(":memory:");
     const app = createApp(db);
 
@@ -30,7 +30,7 @@ describe("cli", () => {
       }),
     });
     expect(createAgentResp.status).toBe(201);
-    const agent = (await createAgentResp.json()) as { id: string; name: string };
+    const agent = (await createAgentResp.json()) as { id: string };
 
     const createTaskResp = await app.request("/api/tasks", {
       method: "POST",
@@ -73,7 +73,7 @@ describe("cli", () => {
     };
 
     try {
-      await runCli(["bun", "heartbeat", "agents", "details", agent.name, "--state", statePath]);
+      await runCli(["bun", "heartbeat", "agents", "show", agent.id, "--state", statePath]);
     } finally {
       console.log = originalLog;
       server.stop(true);
