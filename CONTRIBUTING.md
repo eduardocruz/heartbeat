@@ -2,22 +2,24 @@
 
 ## Project Structure
 
-```
+```text
 heartbeat/
 ├── src/
-│   ├── server/        # HTTP server (agent orchestration platform)
-│   ├── cli/           # CLI binary (install, start, stop, update)
-│   │   ├── index.ts   # CLI entrypoint (commander)
-│   │   ├── update.ts  # Self-update via GitHub Releases
-│   │   ├── state.ts   # Daemon state (pid, port)
-│   │   └── constants.ts
-│   └── index.ts       # Server entrypoint
+│   ├── server/        # Hono app and API routes
+│   ├── cli/           # CLI binary and daemon lifecycle commands
+│   ├── executor/      # Task execution and scheduler logic
+│   ├── db/            # SQLite schema and migrations
+│   ├── projects/      # Claude Code scanning and analytics helpers
+│   ├── web/           # Embedded dashboard HTML
+│   └── index.ts
+├── docs/
+│   └── architecture-tier2.md
 ├── scripts/
-│   └── build-release.sh  # Cross-compile all 3 binaries
+│   └── build-release.sh  # Cross-compile release binaries
 ├── .github/
 │   └── workflows/
-│       └── release.yml   # CI: build + publish GitHub Release on tag push
-├── install.sh         # Curl-pipe installer (downloaded by users)
+│       └── release.yml   # Manual GitHub Release workflow
+├── install.sh         # Installer for published binaries
 └── package.json
 ```
 
@@ -25,8 +27,10 @@ heartbeat/
 
 ```bash
 bun install
-bun run dev          # Start server (src/server/index.ts)
-bun run start        # Start via CLI
+bun run dev          # Start server directly
+bun run start        # Start via CLI and daemon manager
+bun run typecheck
+bun test
 ```
 
 ## Building the CLI binary
@@ -43,37 +47,41 @@ Outputs: `dist/heartbeat-linux-x64`, `dist/heartbeat-darwin-arm64`, `dist/heartb
 
 ## Releasing a new version
 
-1. Bump version in `package.json`
-2. Commit: `git commit -am "chore: bump to v0.2.0"`
-3. Tag + push:
-   ```bash
-   git tag v0.2.0
-   git push origin main --tags
-   ```
-4. GitHub Actions (`.github/workflows/release.yml`) automatically:
-   - Installs deps with `bun install --frozen-lockfile`
-   - Runs `bash scripts/build-release.sh` (3 binaries)
-   - Creates a GitHub Release with the 3 binaries as assets
+1. Bump `package.json`
+2. Update `CHANGELOG.md`
+3. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
+4. Push `main`
+5. Run the `Release` workflow manually in GitHub Actions and provide the target version tag, for example `v0.2.3`
+6. The workflow installs dependencies, builds the release binaries, and publishes the GitHub Release assets
+
+If you need to create the tag locally first:
+
+```bash
+git tag v0.2.3
+git push origin v0.2.3
+```
 
 Users running `heartbeat update` download the latest binary from GitHub Releases.
 
 ## Install script
 
-`install.sh` at repo root is the curl-pipe installer:
+`install.sh` at repo root installs the latest published binary:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/eduardocruz/heartbeat/main/install.sh | bash
 ```
 
 It:
+
 1. Detects OS + arch (`linux-x64`, `darwin-arm64`, `darwin-x64`)
-2. Fetches the latest release from GitHub API
-3. Downloads the binary to `~/.local/bin/heartbeat`
-4. Adds `~/.local/bin` to PATH in shell config (`.zshrc`, `.bashrc`, or `fish`)
+2. Downloads the matching GitHub Release asset
+3. Installs to `/usr/local/bin` when writable, otherwise `~/.heartbeat/bin`
+4. Adds the install directory to PATH in the detected shell profile when needed
 
 To install a specific version:
+
 ```bash
-HEARTBEAT_VERSION=v0.1.1 curl -fsSL https://raw.githubusercontent.com/eduardocruz/heartbeat/main/install.sh | bash
+HEARTBEAT_VERSION=v0.2.2 curl -fsSL https://raw.githubusercontent.com/eduardocruz/heartbeat/main/install.sh | bash
 ```
 
 ## GitHub token requirements
@@ -83,7 +91,7 @@ Permissions: `contents: write` (set in `release.yml`).
 
 ## Self-update flow (`heartbeat update`)
 
-- Calls `https://api.github.com/repos/eduardocruz/heartbeat/releases/latest`
-- Finds the asset matching the current platform
-- Downloads to a temp file, `chmod +x`, replaces the current binary via `renameSync`
-- Requires write permission to the binary location (`~/.local/bin/heartbeat`)
+- Resolves the latest GitHub Release for the current platform
+- Downloads a replacement binary to a temp file
+- Marks it executable and atomically swaps it into place
+- Requires write permission to the installed binary path

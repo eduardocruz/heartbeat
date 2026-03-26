@@ -1,41 +1,33 @@
 # HeartBeat
 
-Create your next self-running company.
+HeartBeat is a local-first agent orchestration platform built with Bun, TypeScript, SQLite, and a lightweight web UI.
+
+Current version: `0.2.2`
 
 ## Install
 
 ```bash
-curl -fsSL https://eduardocruz.com/heartbeat.sh | bash
+curl -fsSL https://raw.githubusercontent.com/eduardocruz/heartbeat/main/install.sh | bash
 ```
 
-## What Is This
+## What It Does
 
-HeartBeat is an agent orchestration platform where users create tasks and CLI agents execute them autonomously. The long-term goal is a system that can manage and improve its own development workflow.
+HeartBeat combines a daemon, HTTP API, scheduler, executor, and dashboard for running autonomous agent work on your machine.
 
-## Status
+Current repository capabilities include:
 
-Current version: `0.1.0` (bootstrap scaffold)
-
-Implemented in this stage:
-- Bun + TypeScript project foundation
-- Hono HTTP server on port `4400`
-- Placeholder API route modules for tasks, agents, and runs
-- Initial database schema/migration stubs
-- Executor and config type placeholders
-
-## Tech Stack
-
-- Runtime: Bun
-- Language: TypeScript (`strict`)
-- Server: Hono
-- Scheduling: Croner
-- CLI tooling: Commander
-- Config parsing: js-yaml
-- Frontend foundation: React dependencies + static `index.html`
+- A compiled `heartbeat` CLI with `init`, `start`, `status`, `stop`, `restart`, `logs`, and `update`
+- A Bun + Hono server with task, agent, project, executor, timeline, and heatmap routes
+- SQLite-backed persistence for tasks, agents, and projects
+- A task executor that runs agent command templates, supports Git workspaces, records stdout/stderr, and captures commit hashes
+- Cron-based agent heartbeats that enqueue recurring work
+- Project analytics sourced from Claude Code history, including sessions, token usage, tool usage, hot files, timeline views, and a 90-day heatmap
+- A web UI served from the same daemon
 
 ## Quick Start
 
 Prerequisites:
+
 - Bun `>= 1.3`
 
 Install dependencies:
@@ -44,56 +36,129 @@ Install dependencies:
 bun install
 ```
 
-Start development server:
+Run the server directly in development:
 
 ```bash
-bun run src/server/index.ts
+bun run dev
 ```
 
-Verify server:
+Or run the daemon flow through the CLI:
 
 ```bash
-curl http://localhost:4400/
-# <h1>HeartBeat v0.1.0</h1>
+bun run start
 ```
 
-Type check:
+Open the app:
+
+```text
+http://localhost:4400/
+```
+
+Check runtime status:
+
+```bash
+heartbeat status
+```
+
+Type-check and test:
 
 ```bash
 bun run typecheck
+bun test
 ```
+
+## Core Concepts
+
+### Tasks
+
+Tasks are persisted in SQLite and move through `pending`, `running`, `done`, `failed`, or `cancelled`. They can include:
+
+- priority
+- assigned agent name
+- repo URL and branch for workspace execution
+- timeout
+- execution output and commit hash
+
+### Agents
+
+Agents define:
+
+- `name`
+- `type`
+- `command_template`
+- optional heartbeat schedule and prompt
+- optional heartbeat repository
+
+Heartbeat-enabled agents are scheduled via Croner and enqueue new tasks when their schedule fires.
+
+### Projects
+
+Projects are first-class records in the UI and API. They can be created manually or scanned from Claude Code project directories, then analyzed for:
+
+- sessions
+- token usage and estimated cost
+- tool usage
+- hot files
+- global activity timeline
+- contribution heatmap
+
+## CLI Commands
+
+```text
+heartbeat init
+heartbeat start [--port --db --state --log]
+heartbeat status [--state]
+heartbeat stop [--state]
+heartbeat restart [--port --db --state --log]
+heartbeat logs [agent] [--state --limit]
+heartbeat update
+```
+
+The daemon stores runtime state, logs, and SQLite data in HeartBeat-managed local paths by default.
+
+## API Surface
+
+Current routes are organized under:
+
+- `/api/tasks`
+- `/api/agents`
+- `/api/projects`
+- `/api/runs`
+- `/api/executor`
+- `/api/timeline`
+- `/api/heatmap`
+
+The root app also serves the dashboard at `/`, `/agents`, `/projects`, and `/timeline`.
 
 ## Project Structure
 
 ```text
 src/
-  server/
-    index.ts
-    routes/
-      tasks.ts
-      agents.ts
-      runs.ts
-  web/
-    index.html
+  cli/
   db/
-    schema.ts
-    migrations.ts
   executor/
-    index.ts
-  config/
-    types.ts
-examples/
-  heartbeat.yaml
-tests/
+  projects/
+  server/
+  web/
+docs/
+  architecture-tier2.md
+scripts/
+  build-release.sh
+install.sh
 ```
 
-## Near-Term Roadmap
+## Version Narrative
 
-1. Implement SQLite-backed task and agent persistence.
-2. Build task management API endpoints.
-3. Add executor runtime for CLI agent runs.
-4. Add git workspace handling for task runs.
-5. Add scheduler heartbeats for recurring work.
+`0.1.x` established the local daemon, SQLite-backed task and agent model, release/install flow, and browser UI.
+
+`0.2.x` adds the more opinionated operating layer:
+
+- project ingestion from Claude Code directories
+- project analytics dashboards
+- agent hiring and SOUL document support
+- daemon restart command
+
+See [CHANGELOG.md](./CHANGELOG.md) for release-by-release details.
 
 ## License
 

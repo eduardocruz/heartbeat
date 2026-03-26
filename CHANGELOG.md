@@ -2,6 +2,26 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.2] — 2026-03-19
+
+### Added
+- `heartbeat restart` command — stops and starts the daemon in one step
+
+---
+
+## [0.2.1] — 2026-03-19
+
+### Added
+- **Hire Agent** — new flow to create agents with AI-generated personas via Claude Code. Generates 5 diverse CEO candidates with avataaars avatars, names, and personality descriptions. User picks one, HeartBeat generates a full SOUL.md document for that agent.
+- **Agent SOUL.md** — each hired agent has an identity document (values, decision framework, communication style) that is included as context on every task execution
+
+### Fixed
+- Task execution now works correctly for Claude Code agents — prompt is passed via stdin to avoid shell quoting issues
+- Hired agents now have correct `command_template` (`claude --print`) with prompt injected properly
+- SOUL.md context is automatically prepended to task prompt when agent has one
+
+---
+
 ## [0.2.0] — 2026-03-19
 
 ### Added
@@ -62,12 +82,14 @@ All notable changes to HeartBeat are documented here.
 - **Self-update** (`heartbeat update`) — downloads latest binary from GitHub Releases
 - **Background daemon** — `heartbeat start` runs the server detached, `heartbeat stop` shuts it down cleanly
 - **Shell auto-install** — installer detects shell (zsh/bash/fish) and adds `~/.local/bin` to PATH automatically
-- **GitHub Actions release workflow** — pushing a `v*` tag builds and publishes binaries for all 3 platforms (linux-x64, darwin-arm64, darwin-x64) automatically
+- **GitHub Actions release workflow** — build and publish binaries for linux-x64, darwin-arm64, and darwin-x64
 - `CONTRIBUTING.md` documenting build, release, and install flows
 
 ### Changed
 - Install script (`install.sh`) now downloads binaries from GitHub Releases instead of a hosted server
 - `package.json` updated with `build:cli:*` scripts for cross-compilation
+
+---
 
 ## [0.1.0] — 2026-03-19
 
@@ -83,22 +105,3 @@ All notable changes to HeartBeat are documented here.
 - Tier 2 SDK integration architecture design
 - Curl install command (`curl -fsSL https://eduardocruz.com/heartbeat.sh | bash`)
 - Initial Bun + Hono + React scaffold
-
-## [0.2.2] — 2026-03-19
-
-### Added
-- `heartbeat restart` command — stops and starts the daemon in one step
-
----
-
-## [0.2.1] — 2026-03-19
-
-### Added
-- **Hire Agent** — new flow to create agents with AI-generated personas via Claude Code. Generates 5 diverse CEO candidates with avataaars avatars, names, and personality descriptions. User picks one, HeartBeat generates a full SOUL.md document for that agent.
-- **Agent SOUL.md** — each hired agent has an identity document (values, decision framework, communication style) that is included as context on every task execution
-
-### Fixed
-- Task execution now works correctly for Claude Code agents — prompt is passed via stdin to avoid shell quoting issues
-- Hired agents now have correct `command_template` (`claude --print`) with prompt injected properly
-- SOUL.md context is automatically prepended to task prompt when agent has one
-
