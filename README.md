@@ -2,7 +2,7 @@
 
 HeartBeat is a local-first agent orchestration platform built with Bun, TypeScript, SQLite, and a lightweight web UI.
 
-Current version: `0.2.2`
+Current version: `0.2.3`
 
 ## Install
 

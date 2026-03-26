@@ -2,6 +2,19 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.3] — 2026-03-26
+
+### Added
+- Workflow-aware task states including `in_review`, `blocked`, `failed`, and `cancelled` for richer operator handoff flows
+- Task comments and review notes in the API and dashboard so status changes carry context instead of only raw state changes
+- Release checklist and migration documentation for safer repeatable HeartBeat releases
+
+### Fixed
+- Dashboard polling now continues through review and blocked states so the new workflow remains operable in the UI
+- Task workflow validation now rejects invalid review-note drift and terminal-task cancellation edge cases
+
+---
+
 ## [0.2.2] — 2026-03-19
 
 ### Added
