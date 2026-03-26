@@ -2,6 +2,14 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.5] — 2026-03-26
+
+### Added
+- Agent details page in the web UI: clicking any agent row in the Agents view expands an inline panel showing metadata, description, soul document, and the full list of assigned tasks with status and priority badges
+- `heartbeat agents list` (alias: `ls`) CLI subcommand to enumerate all configured agents with their IDs, types, heartbeat status, and next scheduled run — making `agents show <id>` discoverable
+
+---
+
 ## [0.2.4] — 2026-03-26
 
 ### Added
