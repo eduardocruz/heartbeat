@@ -2,6 +2,20 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.4] — 2026-03-26
+
+### Added
+- `heartbeat agents show <agent>` and `details` alias for inspecting an agent plus its assigned issues
+- Task dependency tracking so blocked tasks can wait on other tasks and resume automatically once blockers resolve
+- Runtime URL and port reporting in `heartbeat start` and `heartbeat status`
+
+### Fixed
+- Unassigned `todo` tasks no longer fail immediately in the executor before an agent is set
+- Existing tasks can be reassigned later without losing the ability to execute them
+- Migration history stays append-only while preserving the dependency ledger introduced during `0.2.4` development
+
+---
+
 ## [0.2.3] — 2026-03-26
 
 ### Added

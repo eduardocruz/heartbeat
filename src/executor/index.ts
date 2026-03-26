@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { setupWorkspace, getLatestCommit, cleanupOldWorkspaces } from "./git";
+import { reconcileBlockedDependents } from "../tasks/dependencies";
 
 type TaskRow = {
   id: string;
@@ -99,7 +100,7 @@ export class Executor {
 
   private getNextPendingTask(): TaskRow | null {
     return this.db
-      .query("SELECT * FROM tasks WHERE status = 'todo' ORDER BY created_at ASC LIMIT 1")
+      .query("SELECT * FROM tasks WHERE status = 'todo' AND agent IS NOT NULL ORDER BY created_at ASC LIMIT 1")
       .get() as TaskRow | null;
   }
 
@@ -113,6 +114,7 @@ export class Executor {
 
   private completeTask(
     taskId: string,
+    previousStatus: string,
     exitCode: number | null,
     stdout: string,
     stderr: string,
@@ -130,21 +132,23 @@ export class Executor {
         "UPDATE tasks SET status = ?, exit_code = ?, stdout = ?, stderr = ?, commit_hash = ?, completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
       )
       .run(status, exitCode, stdout, finalStderr, commitHash, taskId);
+    reconcileBlockedDependents(this.db, taskId, previousStatus, status);
   }
 
-  private failTask(taskId: string, message: string): void {
+  private failTask(taskId: string, previousStatus: string, message: string): void {
     this.db
       .query(
         "UPDATE tasks SET status = 'failed', stderr = ?, completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
       )
       .run(message, taskId);
+    reconcileBlockedDependents(this.db, taskId, previousStatus, "failed");
   }
 
   async executeTask(task: TaskRow): Promise<void> {
     this.updateTaskStart(task.id);
 
     if (!task.agent) {
-      this.failTask(task.id, "unknown agent: null");
+      this.failTask(task.id, "in_progress", "unknown agent: null");
       return;
     }
 
@@ -152,12 +156,12 @@ export class Executor {
       .query("SELECT name, command_template, active, soul_md FROM agents WHERE name = ? LIMIT 1")
       .get(task.agent) as AgentRow | null;
     if (!agent || agent.active !== 1) {
-      this.failTask(task.id, `unknown agent: ${task.agent}`);
+      this.failTask(task.id, "in_progress", `unknown agent: ${task.agent}`);
       return;
     }
 
     if (!agent.command_template.trim()) {
-      this.failTask(task.id, `empty command template for agent: ${task.agent}`);
+      this.failTask(task.id, "in_progress", `empty command template for agent: ${task.agent}`);
       return;
     }
 
@@ -168,7 +172,7 @@ export class Executor {
         workdir = await setupWorkspace(task.repo_url, task.id, task.branch ?? "main");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        this.failTask(task.id, `workspace setup failed: ${message}`);
+        this.failTask(task.id, "in_progress", `workspace setup failed: ${message}`);
         return;
       }
     }
@@ -205,10 +209,10 @@ export class Executor {
       if (!timedOut && exitCode === 0 && task.repo_url) {
         commitHash = await getLatestCommit(workdir);
       }
-      this.completeTask(task.id, exitCode, stdout, stderr, timedOut, timeoutSec, commitHash);
+      this.completeTask(task.id, "in_progress", exitCode, stdout, stderr, timedOut, timeoutSec, commitHash);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.failTask(task.id, message);
+      this.failTask(task.id, "in_progress", message);
     } finally {
       clearTimeout(timeout);
       this.running.delete(task.id);
