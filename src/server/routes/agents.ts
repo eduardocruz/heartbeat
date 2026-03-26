@@ -23,6 +23,19 @@ type AgentResponse = AgentRow & {
   heartbeat_next_run: string | null;
 };
 
+type AssignedIssueRow = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AgentDetailsResponse = AgentResponse & {
+  assigned_issues: AssignedIssueRow[];
+};
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -45,6 +58,26 @@ function withNextRun(agent: AgentRow, scheduler?: Scheduler): AgentResponse {
   return {
     ...agent,
     heartbeat_next_run: nextRun,
+  };
+}
+
+function findAgent(db: Database, idOrName: string): AgentRow | null {
+  return (
+    (db.query("SELECT * FROM agents WHERE id = ?").get(idOrName) as AgentRow | null)
+    ?? (db.query("SELECT * FROM agents WHERE name = ?").get(idOrName) as AgentRow | null)
+  );
+}
+
+function withAssignedIssues(db: Database, agent: AgentRow, scheduler?: Scheduler): AgentDetailsResponse {
+  const assignedIssues = db
+    .query(
+      "SELECT id, title, status, priority, created_at, updated_at FROM tasks WHERE agent = ? ORDER BY created_at ASC, rowid ASC",
+    )
+    .all(agent.name) as AssignedIssueRow[];
+
+  return {
+    ...withNextRun(agent, scheduler),
+    assigned_issues: assignedIssues,
   };
 }
 
@@ -96,6 +129,15 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
     return c.json(agents.map((agent) => withNextRun(agent, scheduler)));
   });
 
+  agentsRoutes.get("/:id", (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    return c.json(withAssignedIssues(db, agent, scheduler));
+  });
+
   agentsRoutes.post("/", async (c) => {
     const bodyResult = await readJsonObject(c);
     if (bodyResult instanceof Response) {
@@ -143,6 +185,60 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
       }
       return c.json({ error: "Failed to create agent" }, 400);
     }
+  });
+
+  agentsRoutes.get("/:id", (c) => {
+    const id = c.req.param("id");
+    const agent = db.query("SELECT * FROM agents WHERE id = ?").get(id) as AgentRow | null;
+
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    type AssignedIssue = {
+      id: string;
+      title: string;
+      status: string;
+      priority: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+
+    const assignedIssues = db
+      .query("SELECT id, title, status, priority, created_at, updated_at FROM tasks WHERE agent = ? ORDER BY updated_at DESC LIMIT 100")
+      .all(agent.name) as AssignedIssue[];
+
+    return c.json({
+      ...withNextRun(agent, scheduler),
+      assigned_issues: assignedIssues,
+    });
+  });
+
+  agentsRoutes.get("/:id/tasks", (c) => {
+    const id = c.req.param("id");
+    const agent = db.query("SELECT * FROM agents WHERE id = ?").get(id) as AgentRow | null;
+
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const status = c.req.query("status");
+    const limitRaw = c.req.query("limit");
+    const limitParsed = limitRaw ? Number.parseInt(limitRaw, 10) : 50;
+    const limit = Number.isInteger(limitParsed) && limitParsed > 0 && limitParsed <= 500 ? limitParsed : 50;
+
+    let tasks;
+    if (status) {
+      tasks = db
+        .query("SELECT * FROM tasks WHERE agent = ? AND status = ? ORDER BY created_at DESC LIMIT ?")
+        .all(agent.name, status, limit);
+    } else {
+      tasks = db
+        .query("SELECT * FROM tasks WHERE agent = ? ORDER BY created_at DESC LIMIT ?")
+        .all(agent.name, limit);
+    }
+
+    return c.json(tasks);
   });
 
   agentsRoutes.patch("/:id", async (c) => {

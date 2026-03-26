@@ -85,6 +85,13 @@ const migrations: Migration[] = [
       db.query("UPDATE tasks SET status = 'in_progress' WHERE status = 'running'").run();
     },
   },
+  {
+    version: 4,
+    name: "add_task_dependencies",
+    apply(db) {
+      db.exec(schema.workflow.taskDependencies);
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {

@@ -65,5 +65,15 @@ export const schema = {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `,
+    taskDependencies: `
+      CREATE TABLE IF NOT EXISTS task_dependencies (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        task_id TEXT NOT NULL,
+        blocker_task_id TEXT NOT NULL,
+        satisfied_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(task_id, blocker_task_id)
+      );
+    `,
   },
 };
