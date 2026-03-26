@@ -50,12 +50,13 @@ Outputs: `dist/heartbeat-linux-x64`, `dist/heartbeat-darwin-arm64`, `dist/heartb
 Follow the full runbook in [`docs/release-checklist.md`](./docs/release-checklist.md). The short version is:
 
 1. Run `bun install --frozen-lockfile`, `bun run typecheck`, and `bun test`
-2. Validate DB boot/migration behavior and smoke test the daemon
-3. Build release binaries with `bash scripts/build-release.sh`
-4. Bump `package.json` and update `CHANGELOG.md`
-5. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
-6. Push `main` and the version tag
-7. Let the tag-triggered GitHub `Release` workflow publish the binaries and release notes
+2. Decide how to finish the approved branch. Default: open a PR once the branch is reviewed and verified
+3. Validate DB boot/migration behavior and smoke test the daemon
+4. Build release binaries with `bash scripts/build-release.sh`
+5. Bump `package.json` and update `CHANGELOG.md`
+6. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
+7. Push `main` and the version tag
+8. Let the tag-triggered GitHub `Release` workflow publish the binaries and release notes
 
 If you need to create the tag locally first:
 

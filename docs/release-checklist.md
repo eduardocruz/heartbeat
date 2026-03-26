@@ -19,6 +19,13 @@ Use this checklist before shipping a HeartBeat release. It is written for the cu
   bun test
   ```
 
+- Choose the completion path for the approved branch before tagging or merging:
+  - `Create a pull request` is the default once review and verification are complete.
+  - `Merge locally` only when the repo policy already allows direct local merges or a human explicitly asks for it.
+  - `Keep the branch as-is for later` only when release timing, a dependency, or product direction requires delay. Record the owner and reason in the handoff.
+  - `Discard the branch` only when the work is superseded or no longer needed.
+- Do not block approved work solely because nobody picked among the routine source-control options above. If the branch is approved, verified, and still needed, open the PR and hand off the merge/release follow-up there.
+
 - Update release metadata before tagging:
   - `package.json` version
   - `README.md` current version if it changed
@@ -118,8 +125,12 @@ Use a disposable environment when checking installer or updater behavior.
 
 After verification completes:
 
-1. Merge the approved branch into `main`, or keep the branch open if release timing requires it.
-2. Create the release commit that bumps versioned files.
+1. Finish the approved development branch using one of these paths:
+   - `Create a pull request` for merge/release follow-up. This is the default path.
+   - `Merge locally` when direct local merge is already approved for this repo or release.
+   - `Keep the branch as-is for later` when timing or dependencies require waiting. Record why the branch remains open.
+   - `Discard the branch` when the approved work should not ship after all.
+2. If the work is shipping now, create the release commit that bumps versioned files.
 3. Tag the release:
 
    ```bash
