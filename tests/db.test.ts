@@ -52,7 +52,7 @@ describe("database and task API", () => {
     }
   });
 
-  test("migrates a legacy on-disk database in place and records versions once", () => {
+  test("migrates a legacy on-disk database in place and preserves append-only migration history", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "heartbeat-db-upgrade-"));
     cleanupPaths.push(tempDir);
 
@@ -688,7 +688,6 @@ describe("database and task API", () => {
     });
     expect(createAgentResp.status).toBe(201);
 
-    // Create a task with no agent
     const unassignedResp = await app.request("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -701,7 +700,6 @@ describe("database and task API", () => {
     const unassigned = (await unassignedResp.json()) as { id: string; status: string };
     expect(unassigned.status).toBe("todo");
 
-    // Create a task with an agent — should run
     const assignedResp = await app.request("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -716,18 +714,15 @@ describe("database and task API", () => {
 
     await executor.checkForWork();
 
-    // Unassigned task should remain todo (not failed)
     const unassignedAfterResp = await app.request(`/api/tasks/${unassigned.id}`);
     const unassignedAfter = (await unassignedAfterResp.json()) as { status: string };
     expect(unassignedAfter.status).toBe("todo");
 
-    // Assigned task should have run to completion
     const assignedAfterResp = await app.request(`/api/tasks/${assigned.id}`);
     const assignedAfter = (await assignedAfterResp.json()) as { status: string; stdout: string };
     expect(assignedAfter.status).toBe("done");
     expect(assignedAfter.stdout).toBe("hello\n");
 
-    // Now assign an agent to the previously unassigned task
     const patchResp = await app.request(`/api/tasks/${unassigned.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -792,7 +787,7 @@ describe("database and task API", () => {
     db.close();
   });
 
-  test("returns agent details with assigned issues", async () => {
+  test("returns agent details with assigned issues for id and name lookups", async () => {
     const db = createDatabase(":memory:");
     const app = createApp(db);
 
@@ -850,8 +845,104 @@ describe("database and task API", () => {
       expect.objectContaining({ id: secondTask.id, title: "Second task", status: "in_progress" }),
     ]);
 
+    const byNameResp = await app.request(`/api/agents/${agent.name}`);
+    expect(byNameResp.status).toBe(200);
+    const byName = (await byNameResp.json()) as {
+      id: string;
+      assigned_issues: Array<{ id: string }>;
+    };
+    expect(byName.id).toBe(agent.id);
+    expect(byName.assigned_issues.map((issue) => issue.id)).toEqual([firstTask.id, secondTask.id]);
+
     const missingResp = await app.request("/api/agents/does-not-exist");
     expect(missingResp.status).toBe(404);
+
+    db.close();
+  });
+
+  test("supports task reassignment without changing status", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    for (const name of ["codex", "reviewer"]) {
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          type: "custom",
+          command_template: "echo hello",
+        }),
+      });
+      expect(createAgentResp.status).toBe(201);
+    }
+
+    const createTaskResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Recover stalled task",
+        agent: "codex",
+        status: "in_progress",
+      }),
+    });
+    expect(createTaskResp.status).toBe(201);
+    const created = (await createTaskResp.json()) as { id: string; status: string; agent: string | null };
+    expect(created.status).toBe("in_progress");
+    expect(created.agent).toBe("codex");
+
+    const reassignResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent: "reviewer",
+        comment: "Reassigning after the original owner stalled",
+      }),
+    });
+
+    expect(reassignResp.status).toBe(200);
+    const reassigned = (await reassignResp.json()) as { status: string; agent: string | null };
+    expect(reassigned.status).toBe("in_progress");
+    expect(reassigned.agent).toBe("reviewer");
+
+    const commentsResp = await app.request(`/api/tasks/${created.id}/comments`);
+    expect(commentsResp.status).toBe(200);
+    const comments = (await commentsResp.json()) as Array<{ body: string; status: string | null }>;
+    expect(comments).toEqual([
+      expect.objectContaining({
+        body: "Reassigning after the original owner stalled",
+        status: "in_progress",
+      }),
+    ]);
+
+    const unassignResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent: null,
+        comment: "Unassigning until a new owner is selected",
+      }),
+    });
+
+    expect(unassignResp.status).toBe(200);
+    const unassigned = (await unassignResp.json()) as { status: string; agent: string | null };
+    expect(unassigned.status).toBe("in_progress");
+    expect(unassigned.agent).toBeNull();
+
+    db.close();
+  });
+
+  test("serves task reassignment controls in the web app shell", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const resp = await app.request("/");
+    expect(resp.status).toBe(200);
+
+    const html = await resp.text();
+    expect(html).toContain('name="agent"');
+    expect(html).toContain("Reassign task");
+    expect(html).toContain("task-feedback");
 
     db.close();
   });

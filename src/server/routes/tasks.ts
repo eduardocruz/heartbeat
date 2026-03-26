@@ -333,7 +333,6 @@ export function createTasksRoutes(db: Database): Hono {
     let nextReviewer = existing.reviewer;
     let comment: string | null = null;
     let nextBlockerIds: string[] | null = null;
-
     if ("comment" in body) {
       if (!isNonEmptyString(body.comment)) {
         return c.json({ error: "comment must be a non-empty string" }, 400);

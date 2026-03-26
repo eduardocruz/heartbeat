@@ -51,12 +51,14 @@ Follow the full runbook in [`docs/release-checklist.md`](./docs/release-checklis
 
 1. Run `bun install --frozen-lockfile`, `bun run typecheck`, and `bun test`
 2. Decide how to finish the approved branch. Default: open a PR once the branch is reviewed and verified
-3. Validate DB boot/migration behavior and smoke test the daemon
-4. Build release binaries with `bash scripts/build-release.sh`
-5. Bump `package.json` and update `CHANGELOG.md`
-6. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
-7. Push `main` and the version tag
-8. Let the tag-triggered GitHub `Release` workflow publish the binaries and release notes
+3. Make the ticket handoff explicit: `in_review` only when a named reviewer/releaser can act next, `todo` when implementation returns to engineering, `blocked` when an external dependency is stopping progress
+4. If the approved diff already lives on an engineer branch, release engineering opens the PR by default unless repo policy says otherwise
+5. Escalate ambiguous finish-path decisions to the release owner/CEO instead of leaving the ticket in `in_progress`
+6. Validate DB boot/migration behavior and smoke test the daemon
+7. Build release binaries with `bash scripts/build-release.sh`
+8. Bump `package.json` and update `CHANGELOG.md`
+9. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
+10. Push `main` and the version tag or run the manual GitHub Release workflow, depending on the current repo release policy
 
 If you need to create the tag locally first:
 

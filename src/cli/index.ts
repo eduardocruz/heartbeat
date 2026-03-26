@@ -62,6 +62,17 @@ type AgentDetails = {
   created_at: string;
   assigned_issues: AssignedIssue[];
 };
+type AgentSummary = {
+  id: string;
+  name: string;
+  type: string;
+  active: number;
+  heartbeat_enabled: number;
+  heartbeat_cron: string | null;
+  heartbeat_next_run: string | null;
+  created_at: string;
+};
+
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolvePromise) => {
@@ -324,6 +335,35 @@ async function commandLogs(agent: string | undefined, options: { state: string; 
   console.log(renderTable(["Task", "Status", "Agent", "Duration", "Exit"], rows));
 }
 
+async function commandAgentsList(options: { state: string }): Promise<void> {
+  const statePath = resolve(options.state);
+  const state = readDaemonState(statePath);
+
+  if (!state || !isPidRunning(state.pid)) {
+    removeDaemonState(statePath);
+    throw new Error("HeartBeat is not running");
+  }
+
+  const agents = await fetchJson<AgentSummary[]>("http://127.0.0.1:" + state.port + "/api/agents");
+
+  if (agents.length === 0) {
+    console.log("No agents configured.");
+    return;
+  }
+
+  const rows = agents.map((a) => [
+    a.id,
+    a.name,
+    a.type,
+    a.active === 1 ? "yes" : "no",
+    a.heartbeat_enabled === 1 ? "enabled" : "disabled",
+    a.heartbeat_cron ?? "-",
+    a.heartbeat_next_run ? new Date(a.heartbeat_next_run).toLocaleString() : "-",
+  ]);
+
+  console.log(renderTable(["ID", "Name", "Type", "Active", "Heartbeat", "Cron", "Next Run"], rows));
+}
+
 async function commandAgentsShow(agent: string, options: { state: string }): Promise<void> {
   const statePath = resolve(options.state);
   const state = readDaemonState(statePath);
@@ -420,6 +460,13 @@ export async function runCli(argv = process.argv): Promise<void> {
 
   const agentsCommand = program.command("agents").description("Inspect and manage agents");
   agentsCommand.alias("agent");
+
+  agentsCommand
+    .command("list")
+    .alias("ls")
+    .description("List all configured agents")
+    .option("--state <path>", "Daemon state file", defaultStatePath)
+    .action(commandAgentsList);
 
   agentsCommand
     .command("show")

@@ -187,60 +187,6 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
     }
   });
 
-  agentsRoutes.get("/:id", (c) => {
-    const id = c.req.param("id");
-    const agent = db.query("SELECT * FROM agents WHERE id = ?").get(id) as AgentRow | null;
-
-    if (!agent) {
-      return c.json({ error: "Agent not found" }, 404);
-    }
-
-    type AssignedIssue = {
-      id: string;
-      title: string;
-      status: string;
-      priority: string | null;
-      created_at: string;
-      updated_at: string;
-    };
-
-    const assignedIssues = db
-      .query("SELECT id, title, status, priority, created_at, updated_at FROM tasks WHERE agent = ? ORDER BY updated_at DESC LIMIT 100")
-      .all(agent.name) as AssignedIssue[];
-
-    return c.json({
-      ...withNextRun(agent, scheduler),
-      assigned_issues: assignedIssues,
-    });
-  });
-
-  agentsRoutes.get("/:id/tasks", (c) => {
-    const id = c.req.param("id");
-    const agent = db.query("SELECT * FROM agents WHERE id = ?").get(id) as AgentRow | null;
-
-    if (!agent) {
-      return c.json({ error: "Agent not found" }, 404);
-    }
-
-    const status = c.req.query("status");
-    const limitRaw = c.req.query("limit");
-    const limitParsed = limitRaw ? Number.parseInt(limitRaw, 10) : 50;
-    const limit = Number.isInteger(limitParsed) && limitParsed > 0 && limitParsed <= 500 ? limitParsed : 50;
-
-    let tasks;
-    if (status) {
-      tasks = db
-        .query("SELECT * FROM tasks WHERE agent = ? AND status = ? ORDER BY created_at DESC LIMIT ?")
-        .all(agent.name, status, limit);
-    } else {
-      tasks = db
-        .query("SELECT * FROM tasks WHERE agent = ? ORDER BY created_at DESC LIMIT ?")
-        .all(agent.name, limit);
-    }
-
-    return c.json(tasks);
-  });
-
   agentsRoutes.patch("/:id", async (c) => {
     const id = c.req.param("id");
     const existing = db.query("SELECT * FROM agents WHERE id = ?").get(id) as AgentRow | null;
