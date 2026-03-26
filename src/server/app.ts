@@ -10,8 +10,11 @@ import { createProjectsRoutes } from "./routes/projects";
 import { createTasksRoutes } from "./routes/tasks";
 import { createTimelineRoutes } from "./routes/timeline";
 import { createHeatmapRoutes } from "./routes/heatmap";
+import { isApiRequest } from "./http";
 
 import indexHtml from "../web/index.html" with { type: "text" };
+
+const appShellHtml = indexHtml.toString();
 
 type AppOptions = {
   executor?: Executor;
@@ -24,10 +27,28 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   const resolvedOptions = options instanceof Executor ? { executor: options } : options;
   const startedAt = resolvedOptions.startedAt ?? new Date().toISOString();
 
-  app.get("/", (c) => c.html(indexHtml));
-  app.get("/agents", (c) => c.html(indexHtml));
-  app.get("/projects", (c) => c.html(indexHtml));
-  app.get("/timeline", (c) => c.html(indexHtml));
+  app.get("/", (c) => c.html(appShellHtml));
+  app.get("/agents", (c) => c.html(appShellHtml));
+  app.get("/projects", (c) => c.html(appShellHtml));
+  app.get("/timeline", (c) => c.html(appShellHtml));
+
+  app.notFound((c) => {
+    if (isApiRequest(new URL(c.req.url).pathname)) {
+      return c.json({ error: "Route not found" }, 404);
+    }
+
+    return c.html(appShellHtml, 404);
+  });
+
+  app.onError((error, c) => {
+    console.error(error);
+
+    if (isApiRequest(new URL(c.req.url).pathname)) {
+      return c.json({ error: "Internal server error" }, 500);
+    }
+
+    return c.text("Internal server error", 500);
+  });
 
   app.route("/api/tasks", createTasksRoutes(db));
   app.route("/api/agents", createAgentsRoutes(db, resolvedOptions.scheduler));

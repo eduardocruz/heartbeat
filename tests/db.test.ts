@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
 import { createDatabase, getDefaultDbPath } from "../src/db";
 import { Executor } from "../src/executor";
@@ -51,7 +52,97 @@ describe("database and task API", () => {
     }
   });
 
-  test("supports create/list/filter/get/update task flows", async () => {
+  test("migrates a legacy on-disk database in place and records versions once", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "heartbeat-db-upgrade-"));
+    cleanupPaths.push(tempDir);
+
+    const dbPath = join(tempDir, "heartbeat.db");
+    const legacyDb = new Database(dbPath, { create: true });
+    legacyDb.exec(`
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority TEXT DEFAULT 'medium',
+        agent TEXT,
+        repo_url TEXT,
+        branch TEXT,
+        result_summary TEXT,
+        commit_hash TEXT,
+        exit_code INTEGER,
+        stdout TEXT,
+        stderr TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE agents (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        type TEXT NOT NULL,
+        command_template TEXT NOT NULL,
+        active INTEGER DEFAULT 1,
+        heartbeat_cron TEXT,
+        heartbeat_prompt TEXT,
+        heartbeat_repo TEXT,
+        heartbeat_enabled INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    legacyDb
+      .query("INSERT INTO tasks (id, title, status, agent) VALUES (?, ?, ?, ?)")
+      .run("legacy-todo", "Legacy todo", "pending", "codex");
+    legacyDb
+      .query("INSERT INTO tasks (id, title, status, agent) VALUES (?, ?, ?, ?)")
+      .run("legacy-running", "Legacy running", "running", "codex");
+    legacyDb.close();
+
+    const migratedDb = createDatabase(dbPath);
+    const migrationRows = migratedDb
+      .query("SELECT version, name FROM schema_migrations ORDER BY version ASC")
+      .all() as Array<{ version: number; name: string }>;
+    expect(migrationRows).toEqual([
+      { version: 1, name: "bootstrap_core_tables" },
+      { version: 2, name: "add_workflow_tables_and_columns" },
+      { version: 3, name: "normalize_task_workflow_statuses" },
+    ]);
+
+    const taskStatuses = migratedDb
+      .query("SELECT id, status FROM tasks ORDER BY id ASC")
+      .all() as Array<{ id: string; status: string }>;
+    expect(taskStatuses).toEqual([
+      { id: "legacy-running", status: "in_progress" },
+      { id: "legacy-todo", status: "todo" },
+    ]);
+
+    const taskColumns = migratedDb.query("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
+    expect(taskColumns.some((column) => column.name === "reviewer")).toBe(true);
+    expect(taskColumns.some((column) => column.name === "timeout_seconds")).toBe(true);
+
+    const agentColumns = migratedDb.query("PRAGMA table_info(agents)").all() as Array<{ name: string }>;
+    expect(agentColumns.some((column) => column.name === "avatar_url")).toBe(true);
+    expect(agentColumns.some((column) => column.name === "soul_md")).toBe(true);
+    expect(agentColumns.some((column) => column.name === "role")).toBe(true);
+    expect(agentColumns.some((column) => column.name === "description")).toBe(true);
+
+    const taskCommentsTable = migratedDb
+      .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'task_comments'")
+      .get() as { name: string } | null;
+    expect(taskCommentsTable?.name).toBe("task_comments");
+    migratedDb.close();
+
+    const reopenedDb = createDatabase(dbPath);
+    const migrationCount = reopenedDb.query("SELECT COUNT(*) AS count FROM schema_migrations").get() as {
+      count: number;
+    };
+    expect(migrationCount.count).toBe(3);
+    reopenedDb.close();
+  });
+
+  test("supports workflow task flows, review handoff, and comments", async () => {
     const db = createDatabase(":memory:");
     const app = createApp(db);
 
@@ -70,7 +161,7 @@ describe("database and task API", () => {
     expect(createResp.status).toBe(201);
     const created = (await createResp.json()) as { id: string; status: string };
     expect(typeof created.id).toBe("string");
-    expect(created.status).toBe("pending");
+    expect(created.status).toBe("todo");
 
     const listResp = await app.request("/api/tasks");
     expect(listResp.status).toBe(200);
@@ -78,7 +169,7 @@ describe("database and task API", () => {
     expect(Array.isArray(list)).toBe(true);
     expect(list.length).toBe(1);
 
-    const filterResp = await app.request("/api/tasks?status=pending");
+    const filterResp = await app.request("/api/tasks?status=todo");
     expect(filterResp.status).toBe(200);
     const filtered = (await filterResp.json()) as Array<{ id: string }>;
     expect(filtered.length).toBe(1);
@@ -88,16 +179,223 @@ describe("database and task API", () => {
     expect(getResp.status).toBe(200);
 
     const beforeUpdate = (await getResp.json()) as { updated_at: string };
+    const invalidTransitionResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done" }),
+    });
+
+    expect(invalidTransitionResp.status).toBe(400);
+
+    const progressResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "in_progress", comment: "Started implementation" }),
+    });
+
+    expect(progressResp.status).toBe(200);
+
     const patchResp = await app.request(`/api/tasks/${created.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "running" }),
+      body: JSON.stringify({
+        status: "in_review",
+        reviewer: "ceo",
+        comment: "Ready for review",
+      }),
     });
 
     expect(patchResp.status).toBe(200);
-    const updated = (await patchResp.json()) as { status: string; updated_at: string };
-    expect(updated.status).toBe("running");
+    const updated = (await patchResp.json()) as { status: string; reviewer: string | null; updated_at: string };
+    expect(updated.status).toBe("in_review");
+    expect(updated.reviewer).toBe("ceo");
     expect(updated.updated_at >= beforeUpdate.updated_at).toBe(true);
+
+    const commentsResp = await app.request(`/api/tasks/${created.id}/comments`);
+    expect(commentsResp.status).toBe(200);
+    const comments = (await commentsResp.json()) as Array<{ body: string; status: string | null; reviewer: string | null }>;
+    expect(comments).toHaveLength(2);
+    expect(comments[0]).toMatchObject({
+      body: "Started implementation",
+      status: "in_progress",
+      reviewer: null,
+    });
+    expect(comments[1]).toMatchObject({
+      body: "Ready for review",
+      status: "in_review",
+      reviewer: "ceo",
+    });
+
+    db.close();
+  });
+
+  test("rejects note-only workflow drift and terminal task cancellation", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const createResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Review fix",
+        agent: "codex",
+      }),
+    });
+
+    expect(createResp.status).toBe(201);
+    const created = (await createResp.json()) as { id: string };
+
+    const startResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "in_progress", comment: "Started work" }),
+    });
+    expect(startResp.status).toBe(200);
+
+    const invalidReviewNoteResp = await app.request(`/api/tasks/${created.id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body: "Pretending this is ready for review",
+        status: "in_review",
+      }),
+    });
+    expect(invalidReviewNoteResp.status).toBe(400);
+
+    const reviewResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "in_review",
+        reviewer: "ceo",
+        comment: "Ready for review",
+      }),
+    });
+    expect(reviewResp.status).toBe(200);
+
+    const mismatchedReviewerNoteResp = await app.request(`/api/tasks/${created.id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body: "Wrong reviewer on note",
+        reviewer: "cto",
+      }),
+    });
+    expect(mismatchedReviewerNoteResp.status).toBe(400);
+
+    const doneResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done", comment: "Approved" }),
+    });
+    expect(doneResp.status).toBe(200);
+
+    const cancelDoneResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "DELETE",
+    });
+    expect(cancelDoneResp.status).toBe(400);
+
+    db.close();
+  });
+
+  test("maintains lifecycle timestamps when task status changes manually", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const createResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Track lifecycle",
+        agent: "codex",
+      }),
+    });
+
+    expect(createResp.status).toBe(201);
+    const created = (await createResp.json()) as { id: string; started_at: string | null; completed_at: string | null };
+    expect(created.started_at).toBeNull();
+    expect(created.completed_at).toBeNull();
+
+    const startResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "in_progress", comment: "Start work" }),
+    });
+    expect(startResp.status).toBe(200);
+    const started = (await startResp.json()) as { started_at: string | null; completed_at: string | null };
+    expect(typeof started.started_at).toBe("string");
+    expect(started.completed_at).toBeNull();
+
+    const reviewResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "in_review",
+        reviewer: "ceo",
+        comment: "Ready for review",
+      }),
+    });
+    expect(reviewResp.status).toBe(200);
+    const inReview = (await reviewResp.json()) as { started_at: string | null; completed_at: string | null };
+    expect(inReview.started_at).toBe(started.started_at);
+    expect(inReview.completed_at).toBeNull();
+
+    const doneResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done", comment: "Approved" }),
+    });
+    expect(doneResp.status).toBe(200);
+    const done = (await doneResp.json()) as { started_at: string | null; completed_at: string | null };
+    expect(done.started_at).toBe(started.started_at);
+    expect(typeof done.completed_at).toBe("string");
+
+    db.close();
+  });
+
+  test("rejects invalid API query params and non-object JSON bodies", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const invalidLimitResp = await app.request("/api/tasks?limit=501");
+    expect(invalidLimitResp.status).toBe(400);
+
+    const malformedLimitResp = await app.request("/api/tasks?limit=10foo");
+    expect(malformedLimitResp.status).toBe(400);
+
+    const invalidTimelineResp = await app.request("/api/timeline?days=0");
+    expect(invalidTimelineResp.status).toBe(400);
+
+    const malformedTimelineResp = await app.request("/api/timeline?days=5abc");
+    expect(malformedTimelineResp.status).toBe(400);
+
+    const invalidHeatmapResp = await app.request("/api/heatmap?days=366");
+    expect(invalidHeatmapResp.status).toBe(400);
+
+    const invalidProjectResp = await app.request("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Heartbeat", path: "/tmp/project", description: 123 }),
+    });
+    expect(invalidProjectResp.status).toBe(400);
+
+    const arrayBodyResp = await app.request("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify([]),
+    });
+    expect(arrayBodyResp.status).toBe(400);
+
+    db.close();
+  });
+
+  test("returns JSON errors for missing API routes", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const resp = await app.request("/api/does-not-exist");
+    expect(resp.status).toBe(404);
+    expect(await resp.json()).toEqual({ error: "Route not found" });
 
     db.close();
   });
@@ -299,9 +597,9 @@ describe("database and task API", () => {
       .get("cto") as { id: string; title: string; status: string };
 
     expect(firstTask.title).toBe("[heartbeat] cto");
-    expect(firstTask.status).toBe("pending");
+    expect(firstTask.status).toBe("todo");
 
-    db.query("UPDATE tasks SET status = 'running' WHERE id = ?").run(firstTask.id);
+    db.query("UPDATE tasks SET status = 'in_progress' WHERE id = ?").run(firstTask.id);
 
     const secondResult = await scheduler.triggerAgent(agent.id);
     expect(secondResult).toBe("skipped_running");

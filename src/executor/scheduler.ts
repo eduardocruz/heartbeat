@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { Cron } from "croner";
+import { isActiveTaskStatus } from "../tasks/workflow";
 
 type AgentHeartbeatRow = {
   id: string;
@@ -139,9 +140,10 @@ export class Scheduler {
       return "skipped_disabled";
     }
 
-    const runningTask = this.db
-      .query("SELECT id FROM tasks WHERE agent = ? AND status = 'running' LIMIT 1")
-      .get(agent.name) as { id: string } | null;
+    const existingTasks = this.db
+      .query("SELECT id, status FROM tasks WHERE agent = ? ORDER BY created_at DESC LIMIT 25")
+      .all(agent.name) as Array<{ id: string; status: string }>;
+    const runningTask = existingTasks.find((task) => isActiveTaskStatus(task.status)) ?? null;
 
     if (runningTask) {
       this.logger.info(`Skipping heartbeat for ${agent.name}: previous run still active`);
@@ -158,7 +160,7 @@ export class Scheduler {
           agent,
           repo_url,
           updated_at
-        ) VALUES (?, ?, 'pending', 'medium', ?, ?, datetime('now'))`,
+        ) VALUES (?, ?, 'todo', 'medium', ?, ?, datetime('now'))`,
       )
       .run(
         `[heartbeat] ${agent.name}`,

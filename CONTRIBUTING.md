@@ -47,12 +47,15 @@ Outputs: `dist/heartbeat-linux-x64`, `dist/heartbeat-darwin-arm64`, `dist/heartb
 
 ## Releasing a new version
 
-1. Bump `package.json`
-2. Update `CHANGELOG.md`
-3. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
-4. Push `main`
-5. Run the `Release` workflow manually in GitHub Actions and provide the target version tag, for example `v0.2.3`
-6. The workflow installs dependencies, builds the release binaries, and publishes the GitHub Release assets
+Follow the full runbook in [`docs/release-checklist.md`](./docs/release-checklist.md). The short version is:
+
+1. Run `bun install --frozen-lockfile`, `bun run typecheck`, and `bun test`
+2. Validate DB boot/migration behavior and smoke test the daemon
+3. Build release binaries with `bash scripts/build-release.sh`
+4. Bump `package.json` and update `CHANGELOG.md`
+5. Commit the release prep, for example `git commit -am "chore: bump to v0.2.3"`
+6. Push `main` and the version tag
+7. Let the tag-triggered GitHub `Release` workflow publish the binaries and release notes
 
 If you need to create the tag locally first:
 

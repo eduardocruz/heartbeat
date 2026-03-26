@@ -1,4 +1,4 @@
-export type TaskStatus = "pending" | "running" | "done" | "failed";
+import type { TaskStatus } from "../tasks/workflow";
 
 export interface Task {
   id: string;
@@ -6,6 +6,7 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   agent: string;
+  reviewer?: string;
 }
 
 export interface AgentConfig {

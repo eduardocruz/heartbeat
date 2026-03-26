@@ -1,20 +1,24 @@
 import { Hono } from "hono";
 import { scanActivityHeatmap } from "../../projects/heatmap";
+import { parseBoundedPositiveInt } from "../http";
 
 export function createHeatmapRoutes(): Hono {
   const routes = new Hono();
 
   routes.get("/", (c) => {
-    const daysParam = c.req.query("days");
-    let days = 90;
-    if (daysParam) {
-      const parsed = parseInt(daysParam, 10);
-      if (!isNaN(parsed) && parsed > 0) {
-        days = Math.min(parsed, 365);
-      }
+    const daysResult = parseBoundedPositiveInt(c.req.query("days"), "days", {
+      defaultValue: 90,
+      max: 365,
+    });
+    if (!daysResult.ok) {
+      return c.json({ error: daysResult.error }, 400);
     }
-    const heatmap = scanActivityHeatmap(days);
-    return c.json(heatmap);
+    try {
+      const heatmap = scanActivityHeatmap(daysResult.value);
+      return c.json(heatmap);
+    } catch {
+      return c.json({ error: "Failed to load heatmap" }, 500);
+    }
   });
 
   return routes;

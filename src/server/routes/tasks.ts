@@ -1,16 +1,10 @@
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
-
-const TASK_STATUSES = new Set([
-  "pending",
-  "assigned",
-  "running",
-  "done",
-  "failed",
-  "cancelled",
-]);
+import { canTransitionTaskStatus, isTaskStatus, normalizeTaskStatus } from "../../tasks/workflow";
+import { parseBoundedPositiveInt, readJsonObject } from "../http";
 
 const TASK_PRIORITIES = new Set(["critical", "high", "medium", "low"]);
+const MAX_TASK_LIST_LIMIT = 500;
 type SqlParam = string | number | bigint | boolean | Uint8Array | null;
 
 type TaskRow = {
@@ -20,6 +14,7 @@ type TaskRow = {
   status: string;
   priority: string | null;
   agent: string | null;
+  reviewer: string | null;
   repo_url: string | null;
   branch: string | null;
   result_summary: string | null;
@@ -34,6 +29,15 @@ type TaskRow = {
   updated_at: string;
 };
 
+type TaskCommentRow = {
+  id: string;
+  task_id: string;
+  body: string;
+  status: string | null;
+  reviewer: string | null;
+  created_at: string;
+};
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -46,6 +50,58 @@ function optionalString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function normalizeOptionalString(value: unknown): string | null {
+  const normalized = optionalString(value);
+  return normalized === null ? null : normalized.trim() || null;
+}
+
+function insertTaskComment(
+  db: Database,
+  taskId: string,
+  body: string,
+  status: string | null,
+  reviewer: string | null,
+): void {
+  db.query("INSERT INTO task_comments (task_id, body, status, reviewer) VALUES (?, ?, ?, ?)").run(
+    taskId,
+    body,
+    status,
+    reviewer,
+  );
+}
+
+function applyLifecycleTimestamps(
+  updates: string[],
+  existing: TaskRow,
+  nextStatus: string,
+): void {
+  if (nextStatus === existing.status) {
+    return;
+  }
+
+  if (nextStatus === "todo") {
+    updates.push("started_at = NULL", "completed_at = NULL");
+    return;
+  }
+
+  if (nextStatus === "in_progress") {
+    if (existing.started_at === null) {
+      updates.push("started_at = datetime('now')");
+    }
+    updates.push("completed_at = NULL");
+    return;
+  }
+
+  if (nextStatus === "in_review" || nextStatus === "blocked") {
+    updates.push("completed_at = NULL");
+    return;
+  }
+
+  if (nextStatus === "done" || nextStatus === "failed" || nextStatus === "cancelled") {
+    updates.push("completed_at = datetime('now')");
+  }
+}
+
 export function createTasksRoutes(db: Database): Hono {
   const tasksRoutes = new Hono();
 
@@ -54,26 +110,27 @@ export function createTasksRoutes(db: Database): Hono {
     const agent = c.req.query("agent");
     const limitRaw = c.req.query("limit");
 
-    if (status && !TASK_STATUSES.has(status)) {
+    const normalizedStatus = status ? normalizeTaskStatus(status) : null;
+
+    if (normalizedStatus && !isTaskStatus(normalizedStatus)) {
       return c.json({ error: "Invalid status filter" }, 400);
     }
 
-    let limit = 100;
-    if (limitRaw !== undefined) {
-      const parsed = Number.parseInt(limitRaw, 10);
-      if (!Number.isInteger(parsed) || parsed <= 0) {
-        return c.json({ error: "limit must be a positive integer" }, 400);
-      }
-
-      limit = parsed;
+    const limitResult = parseBoundedPositiveInt(limitRaw, "limit", {
+      defaultValue: 100,
+      max: MAX_TASK_LIST_LIMIT,
+    });
+    if (!limitResult.ok) {
+      return c.json({ error: limitResult.error }, 400);
     }
+    const limit = limitResult.value;
 
     const clauses: string[] = [];
     const params: SqlParam[] = [];
 
-    if (status) {
+    if (normalizedStatus) {
       clauses.push("status = ?");
-      params.push(status);
+      params.push(normalizedStatus);
     }
 
     if (agent) {
@@ -91,12 +148,11 @@ export function createTasksRoutes(db: Database): Hono {
   });
 
   tasksRoutes.post("/", async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
     }
+    const body = bodyResult;
 
     if (!isNonEmptyString(body.title)) {
       return c.json({ error: "title is required" }, 400);
@@ -107,15 +163,20 @@ export function createTasksRoutes(db: Database): Hono {
       return c.json({ error: "Invalid priority" }, 400);
     }
 
-    const status = body.status ?? "pending";
-    if (typeof status !== "string" || !TASK_STATUSES.has(status)) {
+    const status = normalizeTaskStatus(typeof body.status === "string" ? body.status : "todo");
+    if (!isTaskStatus(status)) {
       return c.json({ error: "Invalid status" }, 400);
+    }
+
+    const reviewer = normalizeOptionalString(body.reviewer);
+    if (status === "in_review" && !reviewer) {
+      return c.json({ error: "reviewer is required when status is in_review" }, 400);
     }
 
     const result = db
       .query(
-        `INSERT INTO tasks (title, description, status, priority, agent, repo_url, branch, result_summary, commit_hash, exit_code, stdout, stderr, timeout_seconds, started_at, completed_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        `INSERT INTO tasks (title, description, status, priority, agent, reviewer, repo_url, branch, result_summary, commit_hash, exit_code, stdout, stderr, timeout_seconds, started_at, completed_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
       )
       .run(
         body.title.trim(),
@@ -123,6 +184,7 @@ export function createTasksRoutes(db: Database): Hono {
         status,
         priority,
         optionalString(body.agent),
+        reviewer,
         optionalString(body.repo_url),
         optionalString(body.branch),
         optionalString(body.result_summary),
@@ -152,6 +214,61 @@ export function createTasksRoutes(db: Database): Hono {
     return c.json(task);
   });
 
+  tasksRoutes.get("/:id/comments", (c) => {
+    const task = db.query("SELECT id FROM tasks WHERE id = ?").get(c.req.param("id")) as { id: string } | null;
+    if (!task) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    const comments = db
+      .query("SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at ASC, rowid ASC")
+      .all(task.id) as TaskCommentRow[];
+    return c.json(comments);
+  });
+
+  tasksRoutes.post("/:id/comments", async (c) => {
+    const id = c.req.param("id");
+    const existing = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null;
+    if (!existing) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
+    }
+    const body = bodyResult;
+
+    if (!isNonEmptyString(body.body)) {
+      return c.json({ error: "body is required" }, 400);
+    }
+
+    const status = body.status === undefined ? existing.status : normalizeTaskStatus(String(body.status));
+    if (!isTaskStatus(status)) {
+      return c.json({ error: "Invalid status" }, 400);
+    }
+
+    if (status !== normalizeTaskStatus(existing.status)) {
+      return c.json({ error: "comment status must match the current task status; use PATCH to change status" }, 400);
+    }
+
+    const reviewer = body.reviewer === undefined ? existing.reviewer : normalizeOptionalString(body.reviewer);
+    if ((reviewer ?? null) !== (existing.reviewer ?? null)) {
+      return c.json({ error: "comment reviewer must match the current task reviewer; use PATCH to change reviewer" }, 400);
+    }
+
+    if (status === "in_review" && !reviewer) {
+      return c.json({ error: "reviewer is required when status is in_review" }, 400);
+    }
+
+    insertTaskComment(db, id, body.body.trim(), status, reviewer ?? null);
+
+    const created = db
+      .query("SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1")
+      .get(id) as TaskCommentRow;
+    return c.json(created, 201);
+  });
+
   tasksRoutes.patch("/:id", async (c) => {
     const id = c.req.param("id");
     const existing = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null;
@@ -159,12 +276,11 @@ export function createTasksRoutes(db: Database): Hono {
       return c.json({ error: "Task not found" }, 404);
     }
 
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
     }
+    const body = bodyResult;
 
     const allowedFields = [
       "title",
@@ -172,6 +288,7 @@ export function createTasksRoutes(db: Database): Hono {
       "status",
       "priority",
       "agent",
+      "reviewer",
       "repo_url",
       "branch",
       "result_summary",
@@ -186,6 +303,16 @@ export function createTasksRoutes(db: Database): Hono {
 
     const updates: string[] = [];
     const params: SqlParam[] = [];
+    let nextStatus = existing.status;
+    let nextReviewer = existing.reviewer;
+    let comment: string | null = null;
+
+    if ("comment" in body) {
+      if (!isNonEmptyString(body.comment)) {
+        return c.json({ error: "comment must be a non-empty string" }, 400);
+      }
+      comment = body.comment.trim();
+    }
 
     for (const field of allowedFields) {
       if (!(field in body)) {
@@ -204,11 +331,19 @@ export function createTasksRoutes(db: Database): Hono {
       }
 
       if (field === "status") {
-        if (typeof value !== "string" || !TASK_STATUSES.has(value)) {
+        if (typeof value !== "string") {
           return c.json({ error: "Invalid status" }, 400);
         }
+        const normalized = normalizeTaskStatus(value);
+        if (!isTaskStatus(normalized)) {
+          return c.json({ error: "Invalid status" }, 400);
+        }
+        if (!canTransitionTaskStatus(existing.status, normalized)) {
+          return c.json({ error: `Invalid status transition from ${existing.status} to ${normalized}` }, 400);
+        }
         updates.push(`${field} = ?`);
-        params.push(value);
+        params.push(normalized);
+        nextStatus = normalized;
         continue;
       }
 
@@ -239,6 +374,17 @@ export function createTasksRoutes(db: Database): Hono {
         continue;
       }
 
+      if (field === "reviewer") {
+        if (value !== null && value !== undefined && typeof value !== "string") {
+          return c.json({ error: "reviewer must be a string or null" }, 400);
+        }
+        const normalizedReviewer = normalizeOptionalString(value);
+        updates.push(`${field} = ?`);
+        params.push(normalizedReviewer);
+        nextReviewer = normalizedReviewer;
+        continue;
+      }
+
       if (value !== null && value !== undefined && typeof value !== "string") {
         return c.json({ error: `${field} must be a string or null` }, 400);
       }
@@ -247,15 +393,26 @@ export function createTasksRoutes(db: Database): Hono {
       params.push(value ?? null);
     }
 
-    if (updates.length === 0) {
+    if (nextStatus === "in_review" && !nextReviewer) {
+      return c.json({ error: "reviewer is required when status is in_review" }, 400);
+    }
+
+    if (updates.length === 0 && comment === null) {
       return c.json({ error: "No valid fields provided" }, 400);
     }
 
-    updates.push("updated_at = datetime('now')");
-    params.push(id);
+    if (updates.length > 0) {
+      applyLifecycleTimestamps(updates, existing, nextStatus);
+      updates.push("updated_at = datetime('now')");
+      params.push(id);
 
-    const sql = `UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`;
-    db.query(sql).run(...params);
+      const sql = `UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`;
+      db.query(sql).run(...params);
+    }
+
+    if (comment !== null) {
+      insertTaskComment(db, id, comment, nextStatus, nextReviewer);
+    }
 
     const updated = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow;
     return c.json(updated);
@@ -266,6 +423,10 @@ export function createTasksRoutes(db: Database): Hono {
     const existing = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null;
     if (!existing) {
       return c.json({ error: "Task not found" }, 404);
+    }
+
+    if (!canTransitionTaskStatus(existing.status, "cancelled")) {
+      return c.json({ error: `Invalid status transition from ${existing.status} to cancelled` }, 400);
     }
 
     db.query("UPDATE tasks SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?").run(id);

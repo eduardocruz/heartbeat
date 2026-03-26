@@ -66,7 +66,7 @@ export class Executor {
   }
 
   getStatus(): ExecutorStatus {
-    const queue = this.db.query("SELECT COUNT(*) AS count FROM tasks WHERE status = 'pending'").get() as {
+    const queue = this.db.query("SELECT COUNT(*) AS count FROM tasks WHERE status = 'todo'").get() as {
       count: number;
     };
 
@@ -99,13 +99,15 @@ export class Executor {
 
   private getNextPendingTask(): TaskRow | null {
     return this.db
-      .query("SELECT * FROM tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1")
+      .query("SELECT * FROM tasks WHERE status = 'todo' ORDER BY created_at ASC LIMIT 1")
       .get() as TaskRow | null;
   }
 
   private updateTaskStart(taskId: string): void {
     this.db
-      .query("UPDATE tasks SET status = 'running', started_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
+      .query(
+        "UPDATE tasks SET status = 'in_progress', started_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+      )
       .run(taskId);
   }
 

@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { Hono } from "hono";
 import { spawnSync } from "node:child_process";
 import type { Scheduler } from "../../executor/scheduler";
+import { readJsonObject } from "../http";
 
 type SqlParam = string | number | bigint | boolean | Uint8Array | null;
 
@@ -96,12 +97,11 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
   });
 
   agentsRoutes.post("/", async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
     }
+    const body = bodyResult;
 
     if (!isNonEmptyString(body.name) || !isNonEmptyString(body.type) || !isNonEmptyString(body.command_template)) {
       return c.json({ error: "name, type, and command_template are required" }, 400);
@@ -153,12 +153,11 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
       return c.json({ error: "Agent not found" }, 404);
     }
 
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
     }
+    const body = bodyResult;
 
     const updates: string[] = [];
     const params: SqlParam[] = [];
@@ -315,19 +314,16 @@ Make the 5 personas diverse in: personality (analytical vs intuitive), communica
   });
 
   agentsRoutes.post("/hire", async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
     }
+    const body = bodyResult;
 
-    const { name, avatarUrl, description, role } = body as {
-      name: string;
-      avatarUrl: string;
-      description: string;
-      role: string;
-    };
+    const name = optionalText(body.name);
+    const avatarUrl = optionalText(body.avatarUrl);
+    const description = optionalText(body.description);
+    const role = optionalText(body.role);
 
     if (!name || !avatarUrl || !description) {
       return c.json({ error: "name, avatarUrl, and description are required" }, 400);
@@ -354,7 +350,7 @@ Format it as a proper markdown document, around 300-400 words. Make it feel like
     }
 
     const soulMd = result.text.trim();
-    const agentRole = typeof role === "string" && role.trim() ? role.trim() : "ceo";
+    const agentRole = role ?? "ceo";
 
     try {
       const insertResult = db
@@ -362,13 +358,13 @@ Format it as a proper markdown document, around 300-400 words. Make it feel like
           "INSERT INTO agents (name, type, command_template, active, avatar_url, soul_md, role, description) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
         )
         .run(
-          name.trim(),
+          name,
           "claude",
           "claude --print",
           avatarUrl,
           soulMd,
           agentRole,
-          description.trim(),
+          description,
         );
 
       scheduler?.reload();

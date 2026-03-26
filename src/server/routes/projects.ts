@@ -4,6 +4,7 @@ import { scanClaudeProjects, scanProjectSessions } from "../../projects/scanner"
 import { scanProjectUsage } from "../../projects/usage";
 import { scanProjectTools } from "../../projects/tools";
 import { scanProjectFiles } from "../../projects/files";
+import { readJsonObject } from "../http";
 
 type ProjectRow = {
   id: string;
@@ -28,31 +29,34 @@ export function createProjectsRoutes(db: Database): Hono {
   });
 
   routes.post("/scan", (c) => {
-    const scanned = scanClaudeProjects();
-    let inserted = 0;
+    try {
+      const scanned = scanClaudeProjects();
+      let inserted = 0;
 
-    const insertStmt = db.query(
-      `INSERT OR IGNORE INTO projects (name, path, source) VALUES (?, ?, ?)`,
-    );
+      const insertStmt = db.query(
+        `INSERT OR IGNORE INTO projects (name, path, source) VALUES (?, ?, ?)`,
+      );
 
-    for (const project of scanned) {
-      const result = insertStmt.run(project.name, project.path, project.source);
-      if (result.changes > 0) {
-        inserted++;
+      for (const project of scanned) {
+        const result = insertStmt.run(project.name, project.path, project.source);
+        if (result.changes > 0) {
+          inserted++;
+        }
       }
-    }
 
-    const projects = db.query("SELECT * FROM projects ORDER BY created_at DESC").all() as ProjectRow[];
-    return c.json({ inserted, total: projects.length, projects });
+      const projects = db.query("SELECT * FROM projects ORDER BY created_at DESC").all() as ProjectRow[];
+      return c.json({ inserted, total: projects.length, projects });
+    } catch {
+      return c.json({ error: "Failed to scan projects" }, 500);
+    }
   });
 
   routes.post("/", async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid JSON body" }, 400);
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
     }
+    const body = bodyResult;
 
     if (!isNonEmptyString(body.name)) {
       return c.json({ error: "name is required" }, 400);
@@ -60,6 +64,10 @@ export function createProjectsRoutes(db: Database): Hono {
 
     if (!isNonEmptyString(body.path)) {
       return c.json({ error: "path is required" }, 400);
+    }
+
+    if ("description" in body && body.description !== null && typeof body.description !== "string") {
+      return c.json({ error: "description must be a string or null" }, 400);
     }
 
     const description = typeof body.description === "string" ? body.description : null;
@@ -87,8 +95,12 @@ export function createProjectsRoutes(db: Database): Hono {
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
-    const sessions = scanProjectSessions(project.path);
-    return c.json(sessions);
+    try {
+      const sessions = scanProjectSessions(project.path);
+      return c.json(sessions);
+    } catch {
+      return c.json({ error: "Failed to load project sessions" }, 500);
+    }
   });
 
   routes.get("/:id/usage", (c) => {
@@ -97,8 +109,12 @@ export function createProjectsRoutes(db: Database): Hono {
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
-    const usage = scanProjectUsage(project.path);
-    return c.json(usage);
+    try {
+      const usage = scanProjectUsage(project.path);
+      return c.json(usage);
+    } catch {
+      return c.json({ error: "Failed to load project usage" }, 500);
+    }
   });
 
   routes.get("/:id/tools", (c) => {
@@ -107,8 +123,12 @@ export function createProjectsRoutes(db: Database): Hono {
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
-    const tools = scanProjectTools(project.path);
-    return c.json(tools);
+    try {
+      const tools = scanProjectTools(project.path);
+      return c.json(tools);
+    } catch {
+      return c.json({ error: "Failed to load project tools" }, 500);
+    }
   });
 
   routes.get("/:id/files", (c) => {
@@ -117,8 +137,12 @@ export function createProjectsRoutes(db: Database): Hono {
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
-    const files = scanProjectFiles(project.path);
-    return c.json(files);
+    try {
+      const files = scanProjectFiles(project.path);
+      return c.json(files);
+    } catch {
+      return c.json({ error: "Failed to load project files" }, 500);
+    }
   });
 
   routes.delete("/:id", (c) => {

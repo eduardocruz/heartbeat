@@ -286,18 +286,21 @@
         agents: [],
         projects: [],
         expandedTaskId: null,
+        taskComments: {},
         expandedProjectId: null,
         showAllSessions: null,
         statusFilter: "all",
         pollHandle: null,
       };
 
-      const STATUS_TABS = ["all", "pending", "running", "done", "failed"];
+      const STATUS_TABS = ["all", "todo", "in_progress", "in_review", "done", "blocked", "failed", "cancelled"];
+      const TASK_STATUS_OPTIONS = ["todo", "in_progress", "in_review", "done", "blocked", "failed", "cancelled"];
       const STATUS_BADGE = {
-        pending: "bg-slate-600 text-slate-100",
-        assigned: "bg-cyan-700 text-cyan-100",
-        running: "bg-blue-600 text-blue-100 status-running",
+        todo: "bg-slate-600 text-slate-100",
+        in_progress: "bg-blue-600 text-blue-100 status-running",
+        in_review: "bg-violet-600 text-violet-100",
         done: "bg-emerald-600 text-emerald-100",
+        blocked: "bg-amber-500 text-amber-100",
         failed: "bg-rose-600 text-rose-100",
         cancelled: "bg-amber-500 text-amber-100",
       };
@@ -372,6 +375,27 @@
         return div.innerHTML;
       }
 
+      function titleCaseStatus(status) {
+        return String(status || "")
+          .split("_")
+          .map((part) => part ? part[0].toUpperCase() + part.slice(1) : part)
+          .join(" ");
+      }
+
+      async function loadTaskComments(taskId) {
+        try {
+          state.taskComments[taskId] = await api(`/api/tasks/${taskId}/comments`);
+          if (state.expandedTaskId === taskId) {
+            renderTasks();
+          }
+        } catch (error) {
+          state.taskComments[taskId] = [{ id: "error", body: error.message, created_at: null }];
+          if (state.expandedTaskId === taskId) {
+            renderTasks();
+          }
+        }
+      }
+
       function renderStatusTabs() {
         const root = document.getElementById("status-tabs");
         root.innerHTML = "";
@@ -381,7 +405,7 @@
           btn.className = `rounded-md px-3 py-1.5 text-sm font-medium ${
             active ? "bg-sky-500 text-slate-900" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
           }`;
-          btn.textContent = status === "all" ? "All" : status[0].toUpperCase() + status.slice(1);
+          btn.textContent = status === "all" ? "All" : titleCaseStatus(status);
           btn.onclick = () => {
             state.statusFilter = status;
             state.expandedTaskId = null;
@@ -413,9 +437,33 @@
           `;
           tr.onclick = () => {
             state.expandedTaskId = state.expandedTaskId === task.id ? null : task.id;
+            if (state.expandedTaskId === task.id && !state.taskComments[task.id]) {
+              state.taskComments[task.id] = null;
+              void loadTaskComments(task.id);
+            }
             renderTasks();
           };
           tbody.appendChild(tr);
+
+          const commentItems = state.taskComments[task.id];
+          const commentsHtml = commentItems === null
+            ? '<p class="text-sm text-slate-400">Loading updates...</p>'
+            : Array.isArray(commentItems) && commentItems.length > 0
+              ? commentItems.map((comment) => `
+                  <div class="rounded-md border border-slate-700 bg-slate-900/80 p-3">
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                      <span>${escapeHtml(comment.status ? titleCaseStatus(comment.status) : "Note")}</span>
+                      <span>${escapeHtml(comment.reviewer ? `Reviewer: ${comment.reviewer}` : "No reviewer")}</span>
+                      <span>${escapeHtml(comment.created_at ? formatTime(comment.created_at) : "-")}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(comment.body || "")}</p>
+                  </div>
+                `).join("")
+              : '<p class="text-sm text-slate-400">No workflow notes yet.</p>';
+
+          const statusOptionsHtml = TASK_STATUS_OPTIONS.map((status) => `
+            <option value="${status}" ${task.status === status ? "selected" : ""}>${titleCaseStatus(status)}</option>
+          `).join("");
 
           if (state.expandedTaskId === task.id) {
             const details = document.createElement("tr");
@@ -436,15 +484,93 @@
                   </div>
                 </div>
                 <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3">
+                  <p><span class="text-slate-400">Reviewer:</span> ${escapeHtml(task.reviewer || "-")}</p>
                   <p><span class="text-slate-400">Commit:</span> ${escapeHtml(task.commit_hash || "-")}</p>
                   <p><span class="text-slate-400">Started:</span> ${escapeHtml(task.started_at || "-")}</p>
                   <p><span class="text-slate-400">Completed:</span> ${escapeHtml(task.completed_at || "-")}</p>
+                </div>
+                <form class="task-update-form grid gap-3 rounded-lg border border-slate-700 bg-slate-900/70 p-4" data-task-id="${task.id}">
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <label class="text-sm text-slate-300">
+                      <span class="text-xs uppercase tracking-wide text-slate-400">Status</span>
+                      <select name="status" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2">${statusOptionsHtml}</select>
+                    </label>
+                    <label class="text-sm text-slate-300">
+                      <span class="text-xs uppercase tracking-wide text-slate-400">Reviewer</span>
+                      <input name="reviewer" value="${escapeHtml(task.reviewer || "")}" placeholder="Optional unless sending to review" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
+                    </label>
+                  </div>
+                  <label class="text-sm text-slate-300">
+                    <span class="text-xs uppercase tracking-wide text-slate-400">Note</span>
+                    <textarea name="comment" rows="3" placeholder="Explain the status change or handoff" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2"></textarea>
+                  </label>
+                  <div class="flex flex-wrap gap-2">
+                    <button class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Save update</button>
+                    <button class="task-note-button rounded-md border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800" type="button" data-task-id="${task.id}">Add note only</button>
+                  </div>
+                </form>
+                <div class="space-y-3">
+                  <p class="text-xs uppercase tracking-wide text-slate-400">Workflow Notes</p>
+                  ${commentsHtml}
                 </div>
               </td>
             `;
             tbody.appendChild(details);
           }
         }
+
+        tbody.querySelectorAll(".task-update-form").forEach((form) => {
+          form.onsubmit = async (event) => {
+            event.preventDefault();
+            const taskId = form.dataset.taskId;
+            const formData = new FormData(form);
+            const status = formData.get("status");
+            const reviewer = formData.get("reviewer");
+            const comment = formData.get("comment");
+            try {
+              const body = {
+                status,
+                reviewer: reviewer ? String(reviewer).trim() || null : null,
+              };
+              if (comment && String(comment).trim()) {
+                body.comment = String(comment).trim();
+              }
+              await api(`/api/tasks/${taskId}`, {
+                method: "PATCH",
+                body: JSON.stringify(body),
+              });
+              state.taskComments[taskId] = null;
+              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
+            } catch (error) {
+              alert(error.message);
+            }
+          };
+        });
+
+        tbody.querySelectorAll(".task-note-button").forEach((button) => {
+          button.onclick = async () => {
+            const taskId = button.dataset.taskId;
+            const form = button.closest(".task-update-form");
+            const formData = new FormData(form);
+            const comment = String(formData.get("comment") || "").trim();
+            if (!comment) {
+              alert("Note is required.");
+              return;
+            }
+            try {
+              await api(`/api/tasks/${taskId}/comments`, {
+                method: "POST",
+                body: JSON.stringify({
+                  body: comment,
+                }),
+              });
+              state.taskComments[taskId] = null;
+              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
+            } catch (error) {
+              alert(error.message);
+            }
+          };
+        });
       }
 
       function renderAgents() {
@@ -552,12 +678,12 @@
       }
 
       function configurePolling() {
-        const hasRunning = state.tasks.some((task) => task.status === "running");
-        if (!hasRunning && state.pollHandle) {
+        const hasActiveTasks = state.tasks.some((task) => task.status === "todo" || task.status === "in_progress");
+        if (!hasActiveTasks && state.pollHandle) {
           clearInterval(state.pollHandle);
           state.pollHandle = null;
         }
-        if (hasRunning && !state.pollHandle) {
+        if (hasActiveTasks && !state.pollHandle) {
           state.pollHandle = setInterval(loadTasks, 5000);
         }
       }

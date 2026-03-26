@@ -67,11 +67,13 @@ bun run typecheck
 bun test
 ```
 
+Database schema changes are tracked through explicit SQLite migrations in [`src/db/migrations.ts`](./src/db/migrations.ts). Contributor expectations and upgrade verification live in [`docs/database-migrations.md`](./docs/database-migrations.md).
+
 ## Core Concepts
 
 ### Tasks
 
-Tasks are persisted in SQLite and move through `pending`, `running`, `done`, `failed`, or `cancelled`. They can include:
+Tasks are persisted in SQLite and move through workflow-aware states like `todo`, `in_progress`, `in_review`, `done`, `blocked`, `failed`, or `cancelled`. Operators can attach review notes and handoff context directly to each task. Tasks can include:
 
 - priority
 - assigned agent name
