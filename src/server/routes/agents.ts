@@ -23,6 +23,19 @@ type AgentResponse = AgentRow & {
   heartbeat_next_run: string | null;
 };
 
+type AssignedIssueRow = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AgentDetailsResponse = AgentResponse & {
+  assigned_issues: AssignedIssueRow[];
+};
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -45,6 +58,26 @@ function withNextRun(agent: AgentRow, scheduler?: Scheduler): AgentResponse {
   return {
     ...agent,
     heartbeat_next_run: nextRun,
+  };
+}
+
+function findAgent(db: Database, idOrName: string): AgentRow | null {
+  return (
+    (db.query("SELECT * FROM agents WHERE id = ?").get(idOrName) as AgentRow | null)
+    ?? (db.query("SELECT * FROM agents WHERE name = ?").get(idOrName) as AgentRow | null)
+  );
+}
+
+function withAssignedIssues(db: Database, agent: AgentRow, scheduler?: Scheduler): AgentDetailsResponse {
+  const assignedIssues = db
+    .query(
+      "SELECT id, title, status, priority, created_at, updated_at FROM tasks WHERE agent = ? ORDER BY created_at ASC, rowid ASC",
+    )
+    .all(agent.name) as AssignedIssueRow[];
+
+  return {
+    ...withNextRun(agent, scheduler),
+    assigned_issues: assignedIssues,
   };
 }
 
@@ -94,6 +127,15 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
   agentsRoutes.get("/", (c) => {
     const agents = db.query("SELECT * FROM agents ORDER BY created_at DESC").all() as AgentRow[];
     return c.json(agents.map((agent) => withNextRun(agent, scheduler)));
+  });
+
+  agentsRoutes.get("/:id", (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    return c.json(withAssignedIssues(db, agent, scheduler));
   });
 
   agentsRoutes.post("/", async (c) => {

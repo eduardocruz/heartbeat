@@ -17,6 +17,7 @@ HeartBeat combines a daemon, HTTP API, scheduler, executor, and dashboard for ru
 Current repository capabilities include:
 
 - A compiled `heartbeat` CLI with `init`, `start`, `status`, `stop`, `restart`, `logs`, and `update`
+- Agent inspection from the CLI via `heartbeat agents show <agent>`
 - A Bun + Hono server with task, agent, project, executor, timeline, and heatmap routes
 - SQLite-backed persistence for tasks, agents, and projects
 - A task executor that runs agent command templates, supports Git workspaces, records stdout/stderr, and captures commit hashes
@@ -113,6 +114,7 @@ heartbeat status [--state]
 heartbeat stop [--state]
 heartbeat restart [--port --db --state --log]
 heartbeat logs [agent] [--state --limit]
+heartbeat agents show <agent> [--state]
 heartbeat update
 ```
 
@@ -124,6 +126,7 @@ Current routes are organized under:
 
 - `/api/tasks`
 - `/api/agents`
+- `/api/agents/:id`
 - `/api/projects`
 - `/api/runs`
 - `/api/executor`

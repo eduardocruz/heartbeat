@@ -52,7 +52,7 @@ describe("database and task API", () => {
     }
   });
 
-  test("migrates a legacy on-disk database in place and records versions once", () => {
+  test("migrates a legacy on-disk database in place and preserves append-only migration history", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "heartbeat-db-upgrade-"));
     cleanupPaths.push(tempDir);
 
@@ -108,6 +108,7 @@ describe("database and task API", () => {
       { version: 1, name: "bootstrap_core_tables" },
       { version: 2, name: "add_workflow_tables_and_columns" },
       { version: 3, name: "normalize_task_workflow_statuses" },
+      { version: 4, name: "add_task_dependencies" },
     ]);
 
     const taskStatuses = migratedDb
@@ -132,13 +133,17 @@ describe("database and task API", () => {
       .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'task_comments'")
       .get() as { name: string } | null;
     expect(taskCommentsTable?.name).toBe("task_comments");
+    const taskDependenciesTable = migratedDb
+      .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'task_dependencies'")
+      .get() as { name: string } | null;
+    expect(taskDependenciesTable?.name).toBe("task_dependencies");
     migratedDb.close();
 
     const reopenedDb = createDatabase(dbPath);
     const migrationCount = reopenedDb.query("SELECT COUNT(*) AS count FROM schema_migrations").get() as {
       count: number;
     };
-    expect(migrationCount.count).toBe(3);
+    expect(migrationCount.count).toBe(4);
     reopenedDb.close();
   });
 
@@ -353,6 +358,91 @@ describe("database and task API", () => {
     db.close();
   });
 
+  test("tracks blockers explicitly and resumes blocked tasks once all blockers resolve", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const createTask = async (payload: Record<string, unknown>) => {
+      const resp = await app.request("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(resp.status).toBe(201);
+      return resp.json();
+    };
+
+    const blockerOne = (await createTask({ title: "Blocker one", agent: "codex" })) as { id: string };
+    const blockerTwo = (await createTask({ title: "Blocker two", agent: "codex" })) as { id: string };
+    const dependent = (await createTask({
+      title: "Dependent",
+      agent: "codex",
+      status: "blocked",
+      blocked_by_task_ids: [blockerOne.id, blockerTwo.id],
+    })) as { id: string; blocked_by_task_ids: string[] };
+
+    expect(dependent.blocked_by_task_ids).toEqual([blockerOne.id, blockerTwo.id]);
+
+    const firstResolvedResp = await app.request(`/api/tasks/${blockerOne.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "in_progress", comment: "Start blocker one" }),
+    });
+    expect(firstResolvedResp.status).toBe(200);
+
+    const firstDoneResp = await app.request(`/api/tasks/${blockerOne.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done", comment: "Finish blocker one" }),
+    });
+    expect(firstDoneResp.status).toBe(200);
+
+    const blockedStillResp = await app.request(`/api/tasks/${dependent.id}`);
+    const blockedStill = (await blockedStillResp.json()) as { status: string };
+    expect(blockedStill.status).toBe("blocked");
+
+    const secondStartResp = await app.request(`/api/tasks/${blockerTwo.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "in_progress", comment: "Start blocker two" }),
+    });
+    expect(secondStartResp.status).toBe(200);
+
+    const secondDoneResp = await app.request(`/api/tasks/${blockerTwo.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done", comment: "Finish blocker two" }),
+    });
+    expect(secondDoneResp.status).toBe(200);
+
+    const resumedResp = await app.request(`/api/tasks/${dependent.id}`);
+    expect(resumedResp.status).toBe(200);
+    const resumed = (await resumedResp.json()) as { status: string; blocked_by_task_ids: string[] };
+    expect(resumed.status).toBe("todo");
+    expect(resumed.blocked_by_task_ids).toEqual([blockerOne.id, blockerTwo.id]);
+
+    const commentsResp = await app.request(`/api/tasks/${dependent.id}/comments`);
+    expect(commentsResp.status).toBe(200);
+    const comments = (await commentsResp.json()) as Array<{ body: string; status: string | null }>;
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.status).toBe("todo");
+    expect(comments[0]?.body).toContain(blockerOne.id);
+    expect(comments[0]?.body).toContain(blockerTwo.id);
+
+    const noOpResp = await app.request(`/api/tasks/${blockerTwo.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: "Metadata change only" }),
+    });
+    expect(noOpResp.status).toBe(200);
+
+    const commentsAfterNoOpResp = await app.request(`/api/tasks/${dependent.id}/comments`);
+    const commentsAfterNoOp = (await commentsAfterNoOpResp.json()) as Array<{ body: string }>;
+    expect(commentsAfterNoOp).toHaveLength(1);
+
+    db.close();
+  });
+
   test("rejects invalid API query params and non-object JSON bodies", async () => {
     const db = createDatabase(":memory:");
     const app = createApp(db);
@@ -522,6 +612,134 @@ describe("database and task API", () => {
     db.close();
   });
 
+  test("executor resumes blocked dependents when blocker task completes", async () => {
+    const db = createDatabase(":memory:");
+    const executor = new Executor(db);
+    const app = createApp(db, { executor });
+
+    const createAgentResp = await app.request("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "echo-agent",
+        type: "custom",
+        command_template: "echo hello",
+      }),
+    });
+    expect(createAgentResp.status).toBe(201);
+
+    const createTask = async (payload: Record<string, unknown>) => {
+      const resp = await app.request("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(resp.status).toBe(201);
+      return resp.json();
+    };
+
+    const blocker = (await createTask({
+      title: "Blocker",
+      agent: "echo-agent",
+      timeout_seconds: 10,
+    })) as { id: string };
+
+    const dependent = (await createTask({
+      title: "Dependent",
+      agent: "echo-agent",
+      status: "blocked",
+      timeout_seconds: 10,
+      blocked_by_task_ids: [blocker.id],
+    })) as { id: string };
+
+    await executor.checkForWork();
+
+    const blockerResp = await app.request(`/api/tasks/${blocker.id}`);
+    const blockerDone = (await blockerResp.json()) as { status: string };
+    expect(blockerDone.status).toBe("done");
+
+    const dependentResp = await app.request(`/api/tasks/${dependent.id}`);
+    const dependentDone = (await dependentResp.json()) as { status: string; stdout: string };
+    expect(dependentDone.status).toBe("done");
+    expect(dependentDone.stdout).toBe("hello\n");
+
+    const commentsResp = await app.request(`/api/tasks/${dependent.id}/comments`);
+    const comments = (await commentsResp.json()) as Array<{ body: string; status: string | null }>;
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.status).toBe("todo");
+    expect(comments[0]?.body).toContain(blocker.id);
+
+    db.close();
+  });
+
+  test("executor skips tasks with no agent assigned without failing them", async () => {
+    const db = createDatabase(":memory:");
+    const executor = new Executor(db);
+    const app = createApp(db, { executor });
+
+    const createAgentResp = await app.request("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "echo-agent",
+        type: "custom",
+        command_template: "echo hello",
+      }),
+    });
+    expect(createAgentResp.status).toBe(201);
+
+    const unassignedResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Unassigned task",
+        timeout_seconds: 10,
+      }),
+    });
+    expect(unassignedResp.status).toBe(201);
+    const unassigned = (await unassignedResp.json()) as { id: string; status: string };
+    expect(unassigned.status).toBe("todo");
+
+    const assignedResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Assigned task",
+        agent: "echo-agent",
+        timeout_seconds: 10,
+      }),
+    });
+    expect(assignedResp.status).toBe(201);
+    const assigned = (await assignedResp.json()) as { id: string; status: string };
+
+    await executor.checkForWork();
+
+    const unassignedAfterResp = await app.request(`/api/tasks/${unassigned.id}`);
+    const unassignedAfter = (await unassignedAfterResp.json()) as { status: string };
+    expect(unassignedAfter.status).toBe("todo");
+
+    const assignedAfterResp = await app.request(`/api/tasks/${assigned.id}`);
+    const assignedAfter = (await assignedAfterResp.json()) as { status: string; stdout: string };
+    expect(assignedAfter.status).toBe("done");
+    expect(assignedAfter.stdout).toBe("hello\n");
+
+    const patchResp = await app.request(`/api/tasks/${unassigned.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: "echo-agent" }),
+    });
+    expect(patchResp.status).toBe(200);
+
+    await executor.checkForWork();
+
+    const nowAssignedResp = await app.request(`/api/tasks/${unassigned.id}`);
+    const nowAssigned = (await nowAssignedResp.json()) as { status: string; stdout: string };
+    expect(nowAssigned.status).toBe("done");
+    expect(nowAssigned.stdout).toBe("hello\n");
+
+    db.close();
+  });
+
   test("supports heartbeat fields and toggle API for agents", async () => {
     const db = createDatabase(":memory:");
     const scheduler = new Scheduler(db);
@@ -566,6 +784,166 @@ describe("database and task API", () => {
     expect(toggled.heartbeat_next_run).toBeNull();
 
     scheduler.stop();
+    db.close();
+  });
+
+  test("returns agent details with assigned issues for id and name lookups", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const createAgentResp = await app.request("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "codex",
+        type: "custom",
+        command_template: "echo hello",
+      }),
+    });
+    expect(createAgentResp.status).toBe(201);
+    const agent = (await createAgentResp.json()) as { id: string; name: string };
+
+    const createTask = async (payload: Record<string, unknown>) => {
+      const resp = await app.request("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(resp.status).toBe(201);
+      return resp.json();
+    };
+
+    const firstTask = (await createTask({
+      title: "First task",
+      agent: "codex",
+      status: "todo",
+    })) as { id: string };
+
+    const secondTask = (await createTask({
+      title: "Second task",
+      agent: "codex",
+      status: "in_progress",
+    })) as { id: string };
+
+    await createTask({
+      title: "Unassigned task",
+      status: "todo",
+    });
+
+    const resp = await app.request(`/api/agents/${agent.id}`);
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as {
+      id: string;
+      name: string;
+      assigned_issues: Array<{ id: string; title: string; status: string }>;
+    };
+
+    expect(body.id).toBe(agent.id);
+    expect(body.name).toBe("codex");
+    expect(body.assigned_issues).toEqual([
+      expect.objectContaining({ id: firstTask.id, title: "First task", status: "todo" }),
+      expect.objectContaining({ id: secondTask.id, title: "Second task", status: "in_progress" }),
+    ]);
+
+    const byNameResp = await app.request(`/api/agents/${agent.name}`);
+    expect(byNameResp.status).toBe(200);
+    const byName = (await byNameResp.json()) as {
+      id: string;
+      assigned_issues: Array<{ id: string }>;
+    };
+    expect(byName.id).toBe(agent.id);
+    expect(byName.assigned_issues.map((issue) => issue.id)).toEqual([firstTask.id, secondTask.id]);
+
+    const missingResp = await app.request("/api/agents/does-not-exist");
+    expect(missingResp.status).toBe(404);
+
+    db.close();
+  });
+
+  test("supports task reassignment without changing status", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    for (const name of ["codex", "reviewer"]) {
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          type: "custom",
+          command_template: "echo hello",
+        }),
+      });
+      expect(createAgentResp.status).toBe(201);
+    }
+
+    const createTaskResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Recover stalled task",
+        agent: "codex",
+        status: "in_progress",
+      }),
+    });
+    expect(createTaskResp.status).toBe(201);
+    const created = (await createTaskResp.json()) as { id: string; status: string; agent: string | null };
+    expect(created.status).toBe("in_progress");
+    expect(created.agent).toBe("codex");
+
+    const reassignResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent: "reviewer",
+        comment: "Reassigning after the original owner stalled",
+      }),
+    });
+
+    expect(reassignResp.status).toBe(200);
+    const reassigned = (await reassignResp.json()) as { status: string; agent: string | null };
+    expect(reassigned.status).toBe("in_progress");
+    expect(reassigned.agent).toBe("reviewer");
+
+    const commentsResp = await app.request(`/api/tasks/${created.id}/comments`);
+    expect(commentsResp.status).toBe(200);
+    const comments = (await commentsResp.json()) as Array<{ body: string; status: string | null }>;
+    expect(comments).toEqual([
+      expect.objectContaining({
+        body: "Reassigning after the original owner stalled",
+        status: "in_progress",
+      }),
+    ]);
+
+    const unassignResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent: null,
+        comment: "Unassigning until a new owner is selected",
+      }),
+    });
+
+    expect(unassignResp.status).toBe(200);
+    const unassigned = (await unassignResp.json()) as { status: string; agent: string | null };
+    expect(unassigned.status).toBe("in_progress");
+    expect(unassigned.agent).toBeNull();
+
+    db.close();
+  });
+
+  test("serves task reassignment controls in the web app shell", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const resp = await app.request("/");
+    expect(resp.status).toBe(200);
+
+    const html = await resp.text();
+    expect(html).toContain('name="agent"');
+    expect(html).toContain("Reassign task");
+    expect(html).toContain("task-feedback");
+
     db.close();
   });
 

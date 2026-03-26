@@ -1,5 +1,12 @@
 import { Database } from "bun:sqlite";
 import { Hono } from "hono";
+import {
+  attachTaskDependencies,
+  attachTaskDependenciesBulk,
+  normalizeTaskDependencyIds,
+  reconcileBlockedDependents,
+  syncTaskDependencies,
+} from "../../tasks/dependencies";
 import { canTransitionTaskStatus, isTaskStatus, normalizeTaskStatus } from "../../tasks/workflow";
 import { parseBoundedPositiveInt, readJsonObject } from "../http";
 
@@ -144,7 +151,7 @@ export function createTasksRoutes(db: Database): Hono {
     const sql = `SELECT * FROM tasks ${whereClause} ORDER BY created_at DESC LIMIT ?`;
 
     const tasks = db.query(sql).all(...params) as TaskRow[];
-    return c.json(tasks);
+    return c.json(attachTaskDependenciesBulk(db, tasks));
   });
 
   tasksRoutes.post("/", async (c) => {
@@ -171,6 +178,15 @@ export function createTasksRoutes(db: Database): Hono {
     const reviewer = normalizeOptionalString(body.reviewer);
     if (status === "in_review" && !reviewer) {
       return c.json({ error: "reviewer is required when status is in_review" }, 400);
+    }
+
+    let blockerIds: string[] = [];
+    if ("blocked_by_task_ids" in body) {
+      const parsed = normalizeTaskDependencyIds(body.blocked_by_task_ids);
+      if (!parsed.ok) {
+        return c.json({ error: parsed.error }, 400);
+      }
+      blockerIds = parsed.ids;
     }
 
     const result = db
@@ -201,7 +217,17 @@ export function createTasksRoutes(db: Database): Hono {
       | TaskRow
       | null;
 
-    return c.json(created, 201);
+    if (!created) {
+      return c.json({ error: "Task not found after creation" }, 500);
+    }
+
+    const syncResult = syncTaskDependencies(db, created.id, blockerIds);
+    if (!syncResult.ok) {
+      db.query("DELETE FROM tasks WHERE id = ?").run(created.id);
+      return c.json({ error: syncResult.error }, 400);
+    }
+
+    return c.json(attachTaskDependencies(db, created), 201);
   });
 
   tasksRoutes.get("/:id", (c) => {
@@ -211,7 +237,7 @@ export function createTasksRoutes(db: Database): Hono {
       return c.json({ error: "Task not found" }, 404);
     }
 
-    return c.json(task);
+    return c.json(attachTaskDependencies(db, task));
   });
 
   tasksRoutes.get("/:id/comments", (c) => {
@@ -306,12 +332,20 @@ export function createTasksRoutes(db: Database): Hono {
     let nextStatus = existing.status;
     let nextReviewer = existing.reviewer;
     let comment: string | null = null;
-
+    let nextBlockerIds: string[] | null = null;
     if ("comment" in body) {
       if (!isNonEmptyString(body.comment)) {
         return c.json({ error: "comment must be a non-empty string" }, 400);
       }
       comment = body.comment.trim();
+    }
+
+    if ("blocked_by_task_ids" in body) {
+      const parsed = normalizeTaskDependencyIds(body.blocked_by_task_ids);
+      if (!parsed.ok) {
+        return c.json({ error: parsed.error }, 400);
+      }
+      nextBlockerIds = parsed.ids;
     }
 
     for (const field of allowedFields) {
@@ -410,12 +444,20 @@ export function createTasksRoutes(db: Database): Hono {
       db.query(sql).run(...params);
     }
 
+    if (nextBlockerIds !== null) {
+      const syncResult = syncTaskDependencies(db, id, nextBlockerIds);
+      if (!syncResult.ok) {
+        return c.json({ error: syncResult.error }, 400);
+      }
+    }
+
     if (comment !== null) {
       insertTaskComment(db, id, comment, nextStatus, nextReviewer);
     }
 
     const updated = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow;
-    return c.json(updated);
+    reconcileBlockedDependents(db, id, existing.status, nextStatus);
+    return c.json(attachTaskDependencies(db, updated));
   });
 
   tasksRoutes.delete("/:id", (c) => {
@@ -429,9 +471,10 @@ export function createTasksRoutes(db: Database): Hono {
       return c.json({ error: `Invalid status transition from ${existing.status} to cancelled` }, 400);
     }
 
-    db.query("UPDATE tasks SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?").run(id);
+    db.query("UPDATE tasks SET status = 'cancelled', completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
     const cancelled = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow;
-    return c.json(cancelled);
+    reconcileBlockedDependents(db, id, existing.status, "cancelled");
+    return c.json(attachTaskDependencies(db, cancelled));
   });
 
   return tasksRoutes;

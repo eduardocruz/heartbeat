@@ -39,6 +39,41 @@ type TaskLog = {
   exit_code: number | null;
 };
 
+type AssignedIssue = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AgentDetails = {
+  id: string;
+  name: string;
+  type: string;
+  command_template: string;
+  active: number;
+  heartbeat_cron: string | null;
+  heartbeat_prompt: string | null;
+  heartbeat_repo: string | null;
+  heartbeat_enabled: number;
+  heartbeat_next_run: string | null;
+  created_at: string;
+  assigned_issues: AssignedIssue[];
+};
+type AgentSummary = {
+  id: string;
+  name: string;
+  type: string;
+  active: number;
+  heartbeat_enabled: number;
+  heartbeat_cron: string | null;
+  heartbeat_next_run: string | null;
+  created_at: string;
+};
+
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolvePromise) => {
     setTimeout(resolvePromise, ms);
@@ -198,6 +233,7 @@ async function commandStart(options: { port: string; db: string; state: string; 
     const state = readDaemonState(statePath);
     if (state && isPidRunning(state.pid)) {
       console.log(`HeartBeat started in background (pid ${state.pid})`);
+      console.log(`URL: http://127.0.0.1:${state.port}`);
       console.log(`DB: ${state.dbPath}`);
       console.log(`Log: ${state.logPath}`);
       return;
@@ -228,6 +264,8 @@ async function commandStatus(options: { state: string }): Promise<void> {
   const status = await fetchJson<ExecutorStatus>(`http://127.0.0.1:${state.port}/api/executor/status`);
   const rows = [
     ["PID", String(state.pid)],
+    ["URL", `http://127.0.0.1:${state.port}`],
+    ["Port", String(state.port)],
     ["Server started", status.startedAt ?? state.startedAt],
     ["Uptime", typeof status.uptimeSeconds === "number" ? `${status.uptimeSeconds}s` : "-"],
     ["Active tasks", String(status.runningTasks ?? 0)],
@@ -297,6 +335,77 @@ async function commandLogs(agent: string | undefined, options: { state: string; 
   console.log(renderTable(["Task", "Status", "Agent", "Duration", "Exit"], rows));
 }
 
+async function commandAgentsList(options: { state: string }): Promise<void> {
+  const statePath = resolve(options.state);
+  const state = readDaemonState(statePath);
+
+  if (!state || !isPidRunning(state.pid)) {
+    removeDaemonState(statePath);
+    throw new Error("HeartBeat is not running");
+  }
+
+  const agents = await fetchJson<AgentSummary[]>("http://127.0.0.1:" + state.port + "/api/agents");
+
+  if (agents.length === 0) {
+    console.log("No agents configured.");
+    return;
+  }
+
+  const rows = agents.map((a) => [
+    a.id,
+    a.name,
+    a.type,
+    a.active === 1 ? "yes" : "no",
+    a.heartbeat_enabled === 1 ? "enabled" : "disabled",
+    a.heartbeat_cron ?? "-",
+    a.heartbeat_next_run ? new Date(a.heartbeat_next_run).toLocaleString() : "-",
+  ]);
+
+  console.log(renderTable(["ID", "Name", "Type", "Active", "Heartbeat", "Cron", "Next Run"], rows));
+}
+
+async function commandAgentsShow(agent: string, options: { state: string }): Promise<void> {
+  const statePath = resolve(options.state);
+  const state = readDaemonState(statePath);
+
+  if (!state || !isPidRunning(state.pid)) {
+    removeDaemonState(statePath);
+    throw new Error("HeartBeat is not running");
+  }
+
+  const details = await fetchJson<AgentDetails>(`http://127.0.0.1:${state.port}/api/agents/${encodeURIComponent(agent)}`);
+  const rows = [
+    ["ID", details.id],
+    ["Name", details.name],
+    ["Type", details.type],
+    ["Active", details.active === 1 ? "yes" : "no"],
+    ["Heartbeat enabled", details.heartbeat_enabled === 1 ? "yes" : "no"],
+    ["Heartbeat cron", details.heartbeat_cron ?? "-"],
+    ["Heartbeat next run", details.heartbeat_next_run ?? "-"],
+    ["Heartbeat repo", details.heartbeat_repo ?? "-"],
+    ["Created", details.created_at],
+    ["Command template", details.command_template],
+  ];
+
+  console.log(renderTable(["Field", "Value"], rows));
+
+  if (details.assigned_issues.length === 0) {
+    console.log("\nAssigned issues: none");
+    return;
+  }
+
+  const issueRows = details.assigned_issues.map((issue) => [
+    issue.id,
+    issue.title,
+    issue.status,
+    issue.priority ?? "-",
+    issue.updated_at,
+  ]);
+  console.log("");
+  console.log("Assigned issues");
+  console.log(renderTable(["ID", "Title", "Status", "Priority", "Updated"], issueRows));
+}
+
 export async function runCli(argv = process.argv): Promise<void> {
   const defaultStatePath = getDefaultStatePath();
   const defaultLogPath = getDefaultLogPath();
@@ -309,9 +418,7 @@ export async function runCli(argv = process.argv): Promise<void> {
   const program = new Command();
   program.name("heartbeat").description("HeartBeat CLI").version(HEARTBEAT_VERSION);
 
-  program.command("init").description("Scaffold heartbeat.yaml in the current directory").action(() => {
-    void commandInit();
-  });
+  program.command("init").description("Scaffold heartbeat.yaml in the current directory").action(commandInit);
 
   program
     .command("start")
@@ -320,25 +427,19 @@ export async function runCli(argv = process.argv): Promise<void> {
     .option("--db <path>", "SQLite database path", defaultDbPath)
     .option("--state <path>", "Daemon state file", defaultStatePath)
     .option("--log <path>", "Daemon log file", defaultLogPath)
-    .action((options) => {
-      void commandStart(options);
-    });
+    .action(commandStart);
 
   program
     .command("status")
     .description("Show daemon status and executor metrics")
     .option("--state <path>", "Daemon state file", defaultStatePath)
-    .action((options) => {
-      void commandStatus(options);
-    });
+    .action(commandStatus);
 
   program
     .command("stop")
     .description("Stop the running HeartBeat daemon")
     .option("--state <path>", "Daemon state file", defaultStatePath)
-    .action((options) => {
-      void commandStop(options);
-    });
+    .action(commandStop);
 
   program
     .command("restart")
@@ -347,9 +448,7 @@ export async function runCli(argv = process.argv): Promise<void> {
     .option("--db <path>", "SQLite database path", defaultDbPath)
     .option("--state <path>", "Daemon state file", defaultStatePath)
     .option("--log <path>", "Daemon log file", defaultLogPath)
-    .action((options) => {
-      void commandRestart(options);
-    });
+    .action(commandRestart);
 
   program
     .command("logs")
@@ -357,16 +456,30 @@ export async function runCli(argv = process.argv): Promise<void> {
     .argument("[agent]", "Optional agent name filter")
     .option("--state <path>", "Daemon state file", defaultStatePath)
     .option("--limit <n>", "Number of records", "20")
-    .action((agent, options) => {
-      void commandLogs(agent, options);
-    });
+    .action(commandLogs);
+
+  const agentsCommand = program.command("agents").description("Inspect and manage agents");
+  agentsCommand.alias("agent");
+
+  agentsCommand
+    .command("list")
+    .alias("ls")
+    .description("List all configured agents")
+    .option("--state <path>", "Daemon state file", defaultStatePath)
+    .action(commandAgentsList);
+
+  agentsCommand
+    .command("show")
+    .alias("details")
+    .description("Show agent details and assigned issues")
+    .argument("<agent>", "Agent id or name")
+    .option("--state <path>", "Daemon state file", defaultStatePath)
+    .action(commandAgentsShow);
 
   program
     .command("update")
     .description("Update the installed HeartBeat CLI to the latest GitHub release")
-    .action(() => {
-      void commandUpdate(HEARTBEAT_VERSION);
-    });
+    .action(() => commandUpdate(HEARTBEAT_VERSION));
 
   program
     .command("__run-daemon")
@@ -374,9 +487,7 @@ export async function runCli(argv = process.argv): Promise<void> {
     .option("--db <path>", "SQLite database path", defaultDbPath)
     .option("--state <path>", "Daemon state file", defaultStatePath)
     .option("--log <path>", "Daemon log file", defaultLogPath)
-    .action((options: { port: string; db: string; state: string; log: string }) => {
-      void commandRunDaemon(options);
-    });
+    .action(commandRunDaemon);
 
   await program.parseAsync(argv);
 }
