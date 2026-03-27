@@ -15,8 +15,12 @@ import { createHeatmapRoutes } from "./routes/heatmap";
 import { isApiRequest } from "./http";
 
 import indexHtml from "../web/index.html" with { type: "text" };
+import styleguideHtml from "../web/styleguide.html" with { type: "text" };
+import appCss from "../web/styles/output.css" with { type: "text" };
 
 const appShellHtml = indexHtml.toString();
+const styleguideShellHtml = styleguideHtml.toString();
+const appCssText = appCss.toString();
 
 type AppOptions = {
   executor?: Executor;
@@ -30,6 +34,8 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   const resolvedOptions = options instanceof Executor ? { executor: options } : options;
   const startedAt = resolvedOptions.startedAt ?? new Date().toISOString();
 
+  app.get("/app.css", (c) => c.body(appCssText, 200, { "Content-Type": "text/css; charset=utf-8" }));
+  app.get("/styleguide", (c) => c.html(styleguideShellHtml));
   app.get("/", (c) => c.html(appShellHtml));
   app.get("/agents", (c) => c.html(appShellHtml));
   app.get("/runs", (c) => c.html(appShellHtml));

@@ -1,0 +1,435 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   HeartBeat Design System — Tailwind v4 Theme
+   Design tokens defined as CSS custom properties via @theme.
+   All values use the "hb-" prefix namespace to avoid collisions.
+   ========================================================================== */
+
+@theme {
+  /* --------------------------------------------------------------------------
+     Color Palette
+     Semantic naming: surface (backgrounds), border, text, and status colors.
+     Raw values intentionally match Tailwind's built-in slate/sky/emerald etc.
+     so existing utility classes still resolve to the same values.
+  -------------------------------------------------------------------------- */
+
+  /* Surfaces — dark-first hierarchy */
+  --color-hb-surface-base:    oklch(9.8% 0.014 264);   /* ~slate-950  */
+  --color-hb-surface-raised:  oklch(13% 0.018 265);    /* ~slate-900  */
+  --color-hb-surface-overlay: oklch(17.5% 0.021 265);  /* ~slate-800  */
+  --color-hb-surface-muted:   oklch(23% 0.025 265);    /* ~slate-700  */
+
+  /* Borders */
+  --color-hb-border:          oklch(30% 0.022 265);    /* ~slate-700  */
+  --color-hb-border-subtle:   oklch(23% 0.025 265);    /* ~slate-800  */
+
+  /* Text */
+  --color-hb-text-primary:    oklch(93% 0.008 264);    /* ~slate-100  */
+  --color-hb-text-secondary:  oklch(78% 0.014 264);    /* ~slate-300  */
+  --color-hb-text-muted:      oklch(63% 0.018 265);    /* ~slate-400  */
+
+  /* Primary (sky) */
+  --color-hb-primary:         oklch(68% 0.176 222);    /* sky-500     */
+  --color-hb-primary-hover:   oklch(73% 0.160 222);    /* sky-400     */
+  --color-hb-primary-fg:      oklch(13% 0.018 265);    /* dark text on primary bg */
+
+  /* Success (emerald) */
+  --color-hb-success:         oklch(70% 0.162 162);    /* emerald-500 */
+  --color-hb-success-bg:      oklch(20% 0.06  162);    /* emerald-900/50 */
+  --color-hb-success-border:  oklch(35% 0.10  162);    /* emerald-700 */
+  --color-hb-success-text:    oklch(84% 0.10  162);    /* emerald-200 */
+
+  /* Danger (red/rose) */
+  --color-hb-danger:          oklch(63% 0.22  25);     /* rose-600    */
+  --color-hb-danger-bg:       oklch(22% 0.07  25);     /* rose-950    */
+  --color-hb-danger-border:   oklch(38% 0.14  25);     /* rose-700    */
+  --color-hb-danger-text:     oklch(82% 0.08  25);     /* rose-200    */
+
+  /* Warning (amber) */
+  --color-hb-warning:         oklch(77% 0.18  75);     /* amber-500   */
+  --color-hb-warning-bg:      oklch(22% 0.06  75);     /* amber-950   */
+  --color-hb-warning-border:  oklch(42% 0.13  75);     /* amber-700   */
+  --color-hb-warning-text:    oklch(88% 0.10  75);     /* amber-200   */
+
+  /* Info (blue) */
+  --color-hb-info:            oklch(60% 0.20  255);    /* blue-500    */
+  --color-hb-info-bg:         oklch(18% 0.06  255);    /* blue-950    */
+  --color-hb-info-border:     oklch(33% 0.14  255);    /* blue-700    */
+  --color-hb-info-text:       oklch(81% 0.08  255);    /* blue-200    */
+
+  /* Review (violet) */
+  --color-hb-review:          oklch(62% 0.22  280);    /* violet-600  */
+  --color-hb-review-bg:       oklch(19% 0.07  280);    /* violet-950  */
+  --color-hb-review-border:   oklch(37% 0.14  280);    /* violet-700  */
+  --color-hb-review-text:     oklch(83% 0.07  280);    /* violet-200  */
+
+  /* --------------------------------------------------------------------------
+     Typography Scale
+  -------------------------------------------------------------------------- */
+  --font-sans:   ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono:   ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Font sizes (base: 16px) */
+  --text-2xs:    0.625rem;   /* 10px */
+  --text-xs:     0.75rem;    /* 12px */
+  --text-sm:     0.875rem;   /* 14px */
+  --text-base:   1rem;       /* 16px */
+  --text-lg:     1.125rem;   /* 18px */
+  --text-xl:     1.25rem;    /* 20px */
+  --text-2xl:    1.5rem;     /* 24px */
+  --text-3xl:    1.875rem;   /* 30px */
+
+  /* --------------------------------------------------------------------------
+     Spacing Scale (8px grid)
+  -------------------------------------------------------------------------- */
+  --spacing-0:   0;
+  --spacing-1:   0.25rem;   /* 4px  */
+  --spacing-2:   0.5rem;    /* 8px  */
+  --spacing-3:   0.75rem;   /* 12px */
+  --spacing-4:   1rem;      /* 16px */
+  --spacing-5:   1.25rem;   /* 20px */
+  --spacing-6:   1.5rem;    /* 24px */
+  --spacing-8:   2rem;      /* 32px */
+  --spacing-10:  2.5rem;    /* 40px */
+  --spacing-12:  3rem;      /* 48px */
+
+  /* --------------------------------------------------------------------------
+     Border Radii
+  -------------------------------------------------------------------------- */
+  --radius-sm:   0.25rem;   /* 4px  — inputs, badges */
+  --radius-md:   0.375rem;  /* 6px  — buttons, small cards */
+  --radius-lg:   0.5rem;    /* 8px  — toasts, menus */
+  --radius-xl:   0.75rem;   /* 12px — cards, panels */
+  --radius-2xl:  1rem;      /* 16px — modals */
+  --radius-full: 9999px;    /* pill/circle */
+
+  /* --------------------------------------------------------------------------
+     Shadows
+  -------------------------------------------------------------------------- */
+  --shadow-sm:   0 1px 2px 0 rgba(0,0,0,.4);
+  --shadow-md:   0 4px 6px -1px rgba(0,0,0,.5), 0 2px 4px -2px rgba(0,0,0,.4);
+  --shadow-lg:   0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -4px rgba(0,0,0,.4);
+  --shadow-xl:   0 20px 25px -5px rgba(0,0,0,.5), 0 8px 10px -6px rgba(0,0,0,.4);
+}
+
+/* ==========================================================================
+   Base / Reset
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: radial-gradient(circle at top, #1f2937 0%, #0b1020 45%, #05070f 100%);
+  font-family: var(--font-sans);
+  color: var(--color-hb-text-primary);
+}
+
+/* ==========================================================================
+   Component Layer
+   Reusable component classes for common HeartBeat patterns.
+   ========================================================================== */
+@layer components {
+
+  /* ---------- Buttons ---------------------------------------------------- */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+    transition: background-color 150ms ease, opacity 150ms ease;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Primary — sky blue */
+  .btn-primary {
+    background-color: var(--color-hb-primary);
+    color: var(--color-hb-primary-fg);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-hb-primary-hover);
+  }
+
+  /* Secondary — ghost with border */
+  .btn-secondary {
+    background-color: transparent;
+    border: 1px solid var(--color-hb-border);
+    color: var(--color-hb-text-secondary);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-hb-surface-overlay);
+  }
+
+  /* Success — emerald */
+  .btn-success {
+    background-color: var(--color-hb-success);
+    color: #fff;
+  }
+  .btn-success:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  /* Danger — rose */
+  .btn-danger {
+    background-color: var(--color-hb-danger);
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  /* Ghost — no border, subtle hover */
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--color-hb-text-secondary);
+    padding: 0.25rem 0.5rem;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--color-hb-surface-overlay);
+    color: var(--color-hb-text-primary);
+  }
+
+  /* Size modifiers */
+  .btn-xs { font-size: var(--text-xs); padding: 0.125rem 0.5rem; }
+  .btn-sm { font-size: var(--text-sm); padding: 0.3125rem 0.625rem; }
+  .btn-lg { font-size: var(--text-base); padding: 0.625rem 1.25rem; }
+
+  /* ---------- Badges ----------------------------------------------------- */
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  .badge-todo     { background-color: oklch(23% 0.025 265); color: var(--color-hb-text-secondary); }
+  .badge-running  { background-color: var(--color-hb-info-bg); border: 1px solid var(--color-hb-info-border); color: var(--color-hb-info-text); }
+  .badge-review   { background-color: var(--color-hb-review-bg); border: 1px solid var(--color-hb-review-border); color: var(--color-hb-review-text); }
+  .badge-done     { background-color: var(--color-hb-success-bg); border: 1px solid var(--color-hb-success-border); color: var(--color-hb-success-text); }
+  .badge-blocked  { background-color: var(--color-hb-warning-bg); border: 1px solid var(--color-hb-warning-border); color: var(--color-hb-warning-text); }
+  .badge-failed   { background-color: var(--color-hb-danger-bg); border: 1px solid var(--color-hb-danger-border); color: var(--color-hb-danger-text); }
+  .badge-critical { background-color: var(--color-hb-danger-bg); border: 1px solid var(--color-hb-danger-border); color: var(--color-hb-danger-text); }
+  .badge-high     { background-color: var(--color-hb-warning-bg); border: 1px solid var(--color-hb-warning-border); color: var(--color-hb-warning-text); }
+  .badge-medium   { background-color: var(--color-hb-info-bg); border: 1px solid var(--color-hb-info-border); color: var(--color-hb-info-text); }
+  .badge-low      { background-color: var(--color-hb-surface-raised); border: 1px solid var(--color-hb-border-subtle); color: var(--color-hb-text-muted); }
+
+  /* ---------- Inputs & Form Controls ------------------------------------- */
+
+  .input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-hb-surface-base);
+    border: 1px solid var(--color-hb-border);
+    border-radius: var(--radius-md);
+    color: var(--color-hb-text-primary);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+    outline: none;
+  }
+  .input::placeholder {
+    color: var(--color-hb-text-muted);
+  }
+  .input:focus {
+    border-color: var(--color-hb-primary);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-hb-primary) 25%, transparent);
+  }
+
+  .textarea {
+    resize: vertical;
+    min-height: 4.5rem;
+  }
+
+  .select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    padding-right: 2rem;
+  }
+
+  .form-label {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--color-hb-text-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  /* ---------- Cards ------------------------------------------------------- */
+
+  .card {
+    background-color: color-mix(in oklch, var(--color-hb-surface-raised) 75%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-hb-border) 70%, transparent);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .card-body { padding: 1rem; }
+  .card-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-hb-border-subtle);
+  }
+
+  /* ---------- Modals ----------------------------------------------------- */
+
+  .modal {
+    width: 100%;
+    border-radius: var(--radius-2xl);
+    border: 1px solid oklch(30% 0.022 265);
+    background-color: var(--color-hb-surface-raised);
+    color: var(--color-hb-text-primary);
+    padding: 0;
+  }
+  .modal::backdrop {
+    background-color: rgba(0,0,0,0.7);
+  }
+  .modal-body { padding: 1.25rem; }
+
+  /* ---------- Tables ----------------------------------------------------- */
+
+  .table {
+    width: 100%;
+    min-width: 100%;
+    text-align: left;
+    font-size: var(--text-sm);
+  }
+  .table thead {
+    background-color: color-mix(in oklch, var(--color-hb-surface-overlay) 90%, transparent);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-hb-text-secondary);
+  }
+  .table th { padding: 0.75rem 1rem; }
+  .table td { padding: 0.75rem 1rem; }
+  .table tbody { border-top: 1px solid var(--color-hb-border-subtle); }
+  .table tbody tr { border-bottom: 1px solid var(--color-hb-border-subtle); }
+  .table tbody tr:last-child { border-bottom: none; }
+
+  /* ---------- Toasts ----------------------------------------------------- */
+
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 50;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    backdrop-filter: blur(8px);
+    font-size: var(--text-sm);
+    max-width: 24rem;
+  }
+  .toast-success {
+    background-color: color-mix(in oklch, var(--color-hb-success-bg) 90%, transparent);
+    border: 1px solid var(--color-hb-success-border);
+    color: var(--color-hb-success-text);
+  }
+  .toast-danger {
+    background-color: color-mix(in oklch, var(--color-hb-danger-bg) 90%, transparent);
+    border: 1px solid var(--color-hb-danger-border);
+    color: var(--color-hb-danger-text);
+  }
+  .toast-info {
+    background-color: color-mix(in oklch, var(--color-hb-info-bg) 90%, transparent);
+    border: 1px solid var(--color-hb-info-border);
+    color: var(--color-hb-info-text);
+  }
+  .toast-warning {
+    background-color: color-mix(in oklch, var(--color-hb-warning-bg) 90%, transparent);
+    border: 1px solid var(--color-hb-warning-border);
+    color: var(--color-hb-warning-text);
+  }
+
+  /* ---------- Nav Tabs --------------------------------------------------- */
+
+  .nav-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-radius: var(--radius-lg);
+    background-color: color-mix(in oklch, var(--color-hb-surface-overlay) 80%, transparent);
+    padding: 0.25rem;
+  }
+  .nav-tab {
+    border-radius: var(--radius-md);
+    padding: 0.375rem 0.75rem;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-hb-text-muted);
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .nav-tab:hover {
+    color: var(--color-hb-text-primary);
+    background-color: var(--color-hb-surface-muted);
+  }
+  .nav-tab.active {
+    background-color: var(--color-hb-surface-muted);
+    color: var(--color-hb-text-primary);
+  }
+}
+
+/* ==========================================================================
+   Utilities Layer — HeartBeat-specific utilities
+   ========================================================================== */
+@layer utilities {
+  .mono { font-family: var(--font-mono); }
+
+  /* Live status pulsing dot (before pseudo-element) */
+  .status-running::before {
+    content: "";
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 9999px;
+    background: var(--color-hb-info);
+    margin-right: 0.4rem;
+    animation: hb-pulse 1.3s infinite;
+  }
+
+  /* Heartbeat health dot */
+  .heartbeat-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: var(--color-hb-success);
+    box-shadow: 0 0 0 rgba(34, 197, 94, 0.6);
+    animation: hb-heartbeat 1.6s infinite;
+  }
+}
+
+/* ==========================================================================
+   Keyframe Animations
+   ========================================================================== */
+@keyframes hb-pulse {
+  0%   { opacity: 0.4; transform: scale(0.85); }
+  70%  { opacity: 1;   transform: scale(1); }
+  100% { opacity: 0.4; transform: scale(0.85); }
+}
+
+@keyframes hb-heartbeat {
+  0%   { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  70%  { transform: scale(1);   box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
