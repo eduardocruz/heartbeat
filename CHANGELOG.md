@@ -2,12 +2,16 @@
 
 All notable changes to HeartBeat are documented here.
 
-## [0.2.6] — 2026-03-27
+## [0.2.7] — 2026-03-27
 
 ### Added
+- **Run event persistence and streaming**: run events are persisted to the database and streamable via SSE so clients get live execution updates without polling
+- **Approval checkpoints and budget tracking**: agents can declare approval-required operations; budgets are tracked per agent/run with auto-pause at threshold; operators review and approve or deny via the web UI approvals tab
+- **Web UI — approvals tab, live runs, cost signals**: new Approvals tab for reviewing pending checkpoints; live run view shows active executions with tool timelines and approval waits; cost signals surface budget consumption inline
+- **Policy/config validation for tool permissions**: startup validates agent policy files, rejects unknown tool names, and enforces approval-required operation declarations before any run begins
 - **Run history tracking**: new `runs` table records every task execution independently, so a task retried three times shows three distinct run records with their own stdout, stderr, exit codes, and timing
 - **Runs API**: `GET /api/runs` (filterable by `task_id`, `agent`, `status`) and `GET /api/runs/:id` replace the former placeholder endpoint; `GET /api/tasks/:id/runs` lists runs for a specific task
-- **Runs view in web UI**: new dashboard tab shows all execution runs with expandable detail rows for stdout/stderr, commit hash, workspace, and duration
+- **Runs view in web UI**: dashboard tab shows all execution runs with expandable detail rows for stdout/stderr, commit hash, workspace, and duration
 - **Task retry/requeue**: `POST /api/tasks/:id/retry` resets failed or cancelled tasks back to `todo` for re-execution; retry button appears in the task detail panel for eligible tasks
 - **YAML export**: `heartbeat export [file]` CLI command dumps agents, tasks, and projects as YAML for backup or bootstrapping new setups
 - **Agent-project relationships**: `GET/POST /api/agents/:id/projects` and `DELETE /api/agents/:id/projects/:projectId` link agents to projects with configurable roles (`contributor`, `lead`, etc.)
