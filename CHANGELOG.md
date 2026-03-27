@@ -2,6 +2,15 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.10] — 2026-03-27
+
+### Fixed
+- Packaged Bun binaries now serve `/app/*` frontend modules from embedded assets, fixing `404` responses for `/app/main.js` caused by runtime filesystem lookups in `/$bunfs`.
+- Restored SPA navigation in compiled builds by ensuring all required module paths under `src/web/app/*` resolve with `200` at runtime.
+- `heartbeat export` now writes the live CLI version (`HEARTBEAT_VERSION`) instead of stale hardcoded metadata.
+
+---
+
 ## [0.2.9] — 2026-03-27
 
 ### Added

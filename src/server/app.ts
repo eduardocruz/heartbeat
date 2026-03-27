@@ -18,10 +18,34 @@ import { isApiRequest } from "./http";
 import indexHtml from "../web/index.html" with { type: "text" };
 import styleguideHtml from "../web/styleguide.html" with { type: "text" };
 import appCss from "../web/styles/output.css" with { type: "text" };
+import appMainJs from "../web/app/main.js" with { type: "text" };
+import appApiClientJs from "../web/app/api-client.js" with { type: "text" };
+import appConstantsJs from "../web/app/constants.js" with { type: "text" };
+import appRouterJs from "../web/app/router.js" with { type: "text" };
+import appUiUtilsJs from "../web/app/ui-utils.js" with { type: "text" };
+import appAgentsViewJs from "../web/app/views/agents-view.js" with { type: "text" };
+import appApprovalsViewJs from "../web/app/views/approvals-view.js" with { type: "text" };
+import appProjectsViewJs from "../web/app/views/projects-view.js" with { type: "text" };
+import appRunsViewJs from "../web/app/views/runs-view.js" with { type: "text" };
+import appTasksControllerJs from "../web/app/views/tasks-controller.js" with { type: "text" };
+import appTimelineViewJs from "../web/app/views/timeline-view.js" with { type: "text" };
 
 const appShellHtml = indexHtml.toString();
 const styleguideShellHtml = styleguideHtml.toString();
 const appCssText = appCss.toString();
+const APP_MODULES: Record<string, string> = {
+  "main.js": appMainJs.toString(),
+  "api-client.js": appApiClientJs.toString(),
+  "constants.js": appConstantsJs.toString(),
+  "router.js": appRouterJs.toString(),
+  "ui-utils.js": appUiUtilsJs.toString(),
+  "views/agents-view.js": appAgentsViewJs.toString(),
+  "views/approvals-view.js": appApprovalsViewJs.toString(),
+  "views/projects-view.js": appProjectsViewJs.toString(),
+  "views/runs-view.js": appRunsViewJs.toString(),
+  "views/tasks-controller.js": appTasksControllerJs.toString(),
+  "views/timeline-view.js": appTimelineViewJs.toString(),
+};
 
 const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -55,14 +79,13 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
       return c.text("Not found", 404);
     }
 
-    const file = Bun.file(new URL(`../web/app/${relativePath}`, import.meta.url));
-    const exists = await file.exists();
-    if (!exists) {
+    const moduleSource = APP_MODULES[relativePath];
+    if (!moduleSource) {
       return c.text("Not found", 404);
     }
 
     const type = STATIC_CONTENT_TYPES[extname(relativePath).toLowerCase()] || "application/octet-stream";
-    return new Response(file, { status: 200, headers: { "Content-Type": type } });
+    return c.body(moduleSource, 200, { "Content-Type": type });
   });
 
   app.get("/assets/*", async (c) => {

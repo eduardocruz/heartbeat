@@ -452,7 +452,7 @@ async function commandExport(output: string | undefined, options: { state: strin
   ]);
 
   const exportData = {
-    version: "0.2.6",
+    version: HEARTBEAT_VERSION,
     exported_at: new Date().toISOString(),
     agents: agents.map((a) => ({
       name: a.name,
