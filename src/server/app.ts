@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { getDb } from "../db";
 import { Executor } from "../executor";
 import type { Scheduler } from "../executor/scheduler";
+import type { RuntimeRegistry } from "../executor/runtime";
 import { createAgentsRoutes } from "./routes/agents";
 import { createApprovalsRoutes } from "./routes/approvals";
 import { createExecutorRoutes } from "./routes/executor";
@@ -21,6 +22,7 @@ type AppOptions = {
   executor?: Executor;
   scheduler?: Scheduler;
   startedAt?: string;
+  runtimeRegistry?: RuntimeRegistry;
 };
 
 export function createApp(db: Database = getDb(), options: AppOptions | Executor = {}): Hono {
@@ -60,6 +62,20 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   app.route("/api/runs", createRunsRoutes(db));
   app.route("/api/timeline", createTimelineRoutes());
   app.route("/api/heatmap", createHeatmapRoutes());
+  // Phase 4: Runtimes endpoint
+  if (resolvedOptions.runtimeRegistry) {
+    const registry = resolvedOptions.runtimeRegistry;
+    app.get("/api/runtimes", (c) => {
+      return c.json({
+        available: registry.list(),
+        featureFlags: {
+          HB_TIER2_CLAUDE: process.env.HB_TIER2_CLAUDE === "1",
+          HB_TIER2_OPENAI: process.env.HB_TIER2_OPENAI === "1",
+        },
+      });
+    });
+  }
+
   if (resolvedOptions.executor) {
     app.route(
       "/api/executor",

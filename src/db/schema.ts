@@ -140,4 +140,20 @@ export const schema = {
       );
     `,
   },
+  tier2: {
+    sdkSessions: `
+      CREATE TABLE IF NOT EXISTS sdk_sessions (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        issue_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        runtime TEXT NOT NULL,
+        provider_session_id TEXT,
+        state_blob TEXT,
+        last_event_seq INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(issue_id, agent_id)
+      );
+    `,
+  },
 };

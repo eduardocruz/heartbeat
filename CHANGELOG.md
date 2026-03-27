@@ -2,6 +2,22 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.8] — 2026-03-27
+
+### Added
+- **Provider-agnostic runtime registry**: new `AgentRuntime` interface and `RuntimeRegistry` that allows multiple execution backends (CLI, Claude Agent SDK, OpenAI Agents SDK) to coexist behind a single dispatch surface. The existing CLI executor is wrapped as `CliRuntime`, the baseline registered runtime.
+- **Claude Agent SDK runtime**: first native SDK provider (`ClaudeAgentSdkRuntime`) activated behind the `HB_TIER2_CLAUDE=1` feature flag. Supports session resume, usage tracking, and governance policy enforcement.
+- **Session persistence for SDK runs**: new `sdk_sessions` table stores resumable session state per issue-agent pair so SDK-based runtimes can restore context across heartbeats. Sessions include provider session ID, state blob, and event sequence tracking.
+- **Governance policy engine**: provider-agnostic `GovernancePolicyEngine` enforces tool deny/approval policies consistently across CLI and SDK runtimes. Creates approval records for tools requiring pre-execution approval.
+- **Runtime configuration on agents**: agents now support `runtime`, `model`, `tools_json`, `disallowed_tools_json`, `approval_required_json`, `max_budget_usd`, and `resume_enabled` columns for SDK runtime selection and governance configuration.
+- **Config validation**: `validateRuntimeConfig()` validates runtime-specific requirements (CLI needs `commandTemplate`, SDK needs `model`), detects tool list conflicts, and ensures `approvalRequired` is a valid subset of allowed tools.
+- **Runtimes API endpoint**: `GET /api/runtimes` returns available runtimes and feature flag status.
+- **Runtime dependencies wiring**: `createRuntimeDependencies()` builds the concrete governance, session, budget, and run event dependencies from the SQLite database.
+- **Comprehensive test suite**: 10+ new tests covering runtime registry, config validation, governance engine, session persistence, migration v9, and bootstrap.
+- Database migration v9 adds `sdk_sessions` table and runtime config columns to agents.
+
+---
+
 ## [0.2.7] — 2026-03-27
 
 ### Added

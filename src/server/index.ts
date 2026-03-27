@@ -1,6 +1,7 @@
 import { createDatabase } from "../db";
 import { Executor } from "../executor";
 import { Scheduler } from "../executor/scheduler";
+import { bootstrapRuntimeRegistry } from "../executor/bootstrap";
 import { createApp } from "./app";
 
 type ServerOptions = {
@@ -19,6 +20,7 @@ export function startServer(options: ServerOptions = {}): HeartbeatServer {
   const db = createDatabase(options.dbPath);
   const executor = new Executor(db);
   const scheduler = new Scheduler(db);
+  const runtimeRegistry = bootstrapRuntimeRegistry(db);
 
   executor.start();
   scheduler.start();
@@ -28,6 +30,7 @@ export function startServer(options: ServerOptions = {}): HeartbeatServer {
     executor,
     scheduler,
     startedAt,
+    runtimeRegistry,
   });
 
   const server = Bun.serve({

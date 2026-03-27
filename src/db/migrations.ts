@@ -124,6 +124,20 @@ const migrations: Migration[] = [
       db.exec(schema.execution.runEvents);
     },
   },
+  {
+    version: 9,
+    name: "add_tier2_sdk_sessions_and_runtime_config",
+    apply(db) {
+      db.exec(schema.tier2.sdkSessions);
+      ensureColumn(db, "agents", "runtime", "TEXT DEFAULT 'cli'");
+      ensureColumn(db, "agents", "model", "TEXT");
+      ensureColumn(db, "agents", "tools_json", "TEXT");
+      ensureColumn(db, "agents", "disallowed_tools_json", "TEXT");
+      ensureColumn(db, "agents", "approval_required_json", "TEXT");
+      ensureColumn(db, "agents", "max_budget_usd", "REAL");
+      ensureColumn(db, "agents", "resume_enabled", "INTEGER DEFAULT 0");
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {

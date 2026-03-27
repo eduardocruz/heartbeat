@@ -113,6 +113,7 @@ describe("database and task API", () => {
       { version: 6, name: "add_governance_approvals_and_budget" },
       { version: 7, name: "add_policy_config" },
       { version: 8, name: "add_run_events" },
+      { version: 9, name: "add_tier2_sdk_sessions_and_runtime_config" },
     ]);
 
     const taskStatuses = migratedDb
@@ -147,7 +148,7 @@ describe("database and task API", () => {
     const migrationCount = reopenedDb.query("SELECT COUNT(*) AS count FROM schema_migrations").get() as {
       count: number;
     };
-    expect(migrationCount.count).toBe(8);
+    expect(migrationCount.count).toBe(9);
     reopenedDb.close();
   });
 
