@@ -104,5 +104,14 @@ export const schema = {
         UNIQUE(agent_id, project_id)
       );
     `,
+    runEvents: `
+      CREATE TABLE IF NOT EXISTS run_events (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        run_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        data TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
   },
 };

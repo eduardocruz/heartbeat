@@ -100,6 +100,13 @@ const migrations: Migration[] = [
       db.exec(schema.execution.agentProjects);
     },
   },
+  {
+    version: 6,
+    name: "add_run_events",
+    apply(db) {
+      db.exec(schema.execution.runEvents);
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {

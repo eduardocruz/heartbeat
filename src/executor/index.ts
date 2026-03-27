@@ -114,6 +114,13 @@ export class Executor {
     return row.id;
   }
 
+  private emitEvent(runId: string, eventType: string, data?: unknown): void {
+    const dataJson = data !== undefined ? JSON.stringify(data) : null;
+    this.db
+      .query("INSERT INTO run_events (run_id, event_type, data) VALUES (?, ?, ?)")
+      .run(runId, eventType, dataJson);
+  }
+
   private completeRun(
     runId: string,
     exitCode: number | null,
@@ -214,6 +221,7 @@ export class Executor {
     cleanupOldWorkspaces();
 
     const runId = this.createRun(task.id, task.agent, workdir !== "/tmp" ? workdir : null);
+    this.emitEvent(runId, "started", { task_id: task.id, agent: task.agent });
 
     // For claude --print, pass prompt via stdin to avoid shell quoting issues
     const isClaudeCommand = command.trimStart().startsWith("claude");
@@ -246,6 +254,13 @@ export class Executor {
         commitHash = await getLatestCommit(workdir);
       }
       this.completeRun(runId, exitCode, stdout, stderr, timedOut, commitHash);
+      if (timedOut) {
+        this.emitEvent(runId, "timed_out", { timeout_sec: timeoutSec });
+      } else if (exitCode !== 0) {
+        this.emitEvent(runId, "failed", { exit_code: exitCode });
+      } else {
+        this.emitEvent(runId, "completed", { exit_code: exitCode, commit_hash: commitHash });
+      }
       this.completeTask(task.id, "in_progress", exitCode, stdout, stderr, timedOut, timeoutSec, commitHash);
       if ((timedOut || exitCode !== 0) && task.repo_url) {
         markWorkspaceFailed(task.id);
@@ -253,6 +268,7 @@ export class Executor {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.failRun(runId, message);
+      this.emitEvent(runId, "failed", { error: message });
       this.failTask(task.id, "in_progress", message);
     } finally {
       clearTimeout(timeout);
