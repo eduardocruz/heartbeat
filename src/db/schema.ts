@@ -120,5 +120,15 @@ export const schema = {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `,
+    agentPolicies: `
+      CREATE TABLE IF NOT EXISTS agent_policies (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        agent_id TEXT NOT NULL UNIQUE,
+        denied_tools TEXT NOT NULL DEFAULT '[]',
+        approval_required_tools TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
   },
 };

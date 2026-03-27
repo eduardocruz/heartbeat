@@ -11,6 +11,7 @@ type TaskRow = {
   branch: string | null;
   timeout_seconds: number | null;
   status: string;
+  tool: string | null;
 };
 
 type AgentRow = {
@@ -102,8 +103,35 @@ export class Executor {
 
   private getNextPendingTask(): TaskRow | null {
     return this.db
-      .query("SELECT * FROM tasks WHERE status = 'todo' AND agent IS NOT NULL ORDER BY created_at ASC LIMIT 1")
+      .query("SELECT id, title, description, agent, repo_url, branch, timeout_seconds, status, tool FROM tasks WHERE status = 'todo' AND agent IS NOT NULL ORDER BY created_at ASC LIMIT 1")
       .get() as TaskRow | null;
+  }
+
+  private checkPolicy(task: TaskRow, agentId: string): { action: "deny" | "require_approval"; reason: string } | null {
+    if (!task.tool) {
+      return null;
+    }
+
+    const policyRow = this.db
+      .query("SELECT denied_tools, approval_required_tools FROM agent_policies WHERE agent_id = ?")
+      .get(agentId) as { denied_tools: string; approval_required_tools: string } | null;
+
+    if (!policyRow) {
+      return null;
+    }
+
+    const deniedTools = JSON.parse(policyRow.denied_tools) as string[];
+    const approvalTools = JSON.parse(policyRow.approval_required_tools) as string[];
+
+    if (deniedTools.includes(task.tool)) {
+      return { action: "deny", reason: `Tool "${task.tool}" is denied by agent policy` };
+    }
+
+    if (approvalTools.includes(task.tool)) {
+      return { action: "require_approval", reason: `Tool "${task.tool}" requires approval per agent policy` };
+    }
+
+    return null;
   }
 
   private createRun(taskId: string, agent: string, workspaceDir: string | null): string {
@@ -219,6 +247,25 @@ export class Executor {
           .query("UPDATE tasks SET status = 'blocked', updated_at = datetime('now') WHERE id = ?")
           .run(task.id);
 
+        return;
+      }
+    }
+
+    const policyResult = this.checkPolicy(task, agent.id);
+    if (policyResult) {
+      if (policyResult.action === "deny") {
+        this.failTask(task.id, "in_progress", policyResult.reason);
+        return;
+      }
+      if (policyResult.action === "require_approval") {
+        this.db
+          .query(
+            "INSERT INTO approvals (agent_id, task_id, reason, status) VALUES (?, ?, ?, 'pending')",
+          )
+          .run(agent.id, task.id, policyResult.reason);
+        this.db
+          .query("UPDATE tasks SET status = 'blocked', updated_at = datetime('now') WHERE id = ?")
+          .run(task.id);
         return;
       }
     }

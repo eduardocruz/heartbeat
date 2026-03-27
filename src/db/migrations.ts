@@ -109,6 +109,14 @@ const migrations: Migration[] = [
       ensureColumn(db, "runs", "cost_cents", "INTEGER DEFAULT 0");
     },
   },
+  {
+    version: 7,
+    name: "add_policy_config",
+    apply(db) {
+      db.exec(schema.governance.agentPolicies);
+      ensureColumn(db, "tasks", "tool", "TEXT");
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {

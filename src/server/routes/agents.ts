@@ -6,6 +6,30 @@ import { readJsonObject } from "../http";
 
 type SqlParam = string | number | bigint | boolean | Uint8Array | null;
 
+export const KNOWN_TOOLS = new Set([
+  "bash",
+  "file_read",
+  "file_write",
+  "git_commit",
+  "git_push",
+  "web_search",
+  "web_fetch",
+  "code_review",
+  "deploy",
+]);
+
+type PolicyRow = {
+  agent_id: string;
+  denied_tools: string;
+  approval_required_tools: string;
+};
+
+type PolicyResponse = {
+  agent_id: string;
+  denied_tools: string[];
+  approval_required_tools: string[];
+};
+
 type AgentRow = {
   id: string;
   name: string;
@@ -585,6 +609,78 @@ Format it as a proper markdown document, around 300-400 words. Make it feel like
       spent_cents: spentCents,
       remaining_cents: remainingCents,
     });
+  });
+
+  agentsRoutes.get("/:id/policy", (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const row = db
+      .query("SELECT agent_id, denied_tools, approval_required_tools FROM agent_policies WHERE agent_id = ?")
+      .get(agent.id) as PolicyRow | null;
+
+    const response: PolicyResponse = {
+      agent_id: agent.id,
+      denied_tools: row ? (JSON.parse(row.denied_tools) as string[]) : [],
+      approval_required_tools: row ? (JSON.parse(row.approval_required_tools) as string[]) : [],
+    };
+    return c.json(response);
+  });
+
+  agentsRoutes.put("/:id/policy", async (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
+    }
+    const body = bodyResult;
+
+    if (!Array.isArray(body.denied_tools) || !Array.isArray(body.approval_required_tools)) {
+      return c.json({ error: "denied_tools and approval_required_tools must be arrays" }, 400);
+    }
+
+    const deniedTools = body.denied_tools as unknown[];
+    const approvalTools = body.approval_required_tools as unknown[];
+
+    const allTools = [...deniedTools, ...approvalTools];
+    const unknownTools = allTools.filter((t) => typeof t !== "string" || !KNOWN_TOOLS.has(t));
+    if (unknownTools.length > 0) {
+      return c.json({ error: `Unknown tool names: ${unknownTools.join(", ")}` }, 400);
+    }
+
+    const deniedSet = new Set(deniedTools as string[]);
+    const conflicts = (approvalTools as string[]).filter((t) => deniedSet.has(t));
+    if (conflicts.length > 0) {
+      return c.json(
+        { error: `Tool conflict: tools cannot be in both denied and approval_required: ${conflicts.join(", ")}` },
+        400,
+      );
+    }
+
+    const deniedJson = JSON.stringify(deniedTools);
+    const approvalJson = JSON.stringify(approvalTools);
+
+    db.query(
+      `INSERT INTO agent_policies (agent_id, denied_tools, approval_required_tools)
+       VALUES (?, ?, ?)
+       ON CONFLICT(agent_id) DO UPDATE SET
+         denied_tools = excluded.denied_tools,
+         approval_required_tools = excluded.approval_required_tools,
+         updated_at = datetime('now')`,
+    ).run(agent.id, deniedJson, approvalJson);
+
+    const response: PolicyResponse = {
+      agent_id: agent.id,
+      denied_tools: deniedTools as string[],
+      approval_required_tools: approvalTools as string[],
+    };
+    return c.json(response);
   });
 
   agentsRoutes.delete("/:id", (c) => {

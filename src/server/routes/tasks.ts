@@ -191,8 +191,8 @@ export function createTasksRoutes(db: Database): Hono {
 
     const result = db
       .query(
-        `INSERT INTO tasks (title, description, status, priority, agent, reviewer, repo_url, branch, result_summary, commit_hash, exit_code, stdout, stderr, timeout_seconds, started_at, completed_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        `INSERT INTO tasks (title, description, status, priority, agent, reviewer, repo_url, branch, result_summary, commit_hash, exit_code, stdout, stderr, timeout_seconds, started_at, completed_at, tool, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
       )
       .run(
         body.title.trim(),
@@ -211,6 +211,7 @@ export function createTasksRoutes(db: Database): Hono {
         typeof body.timeout_seconds === "number" ? body.timeout_seconds : null,
         optionalString(body.started_at),
         optionalString(body.completed_at),
+        normalizeOptionalString(body.tool),
       );
 
     const created = db.query("SELECT * FROM tasks WHERE rowid = ?").get(result.lastInsertRowid) as
