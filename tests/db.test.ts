@@ -110,6 +110,7 @@ describe("database and task API", () => {
       { version: 3, name: "normalize_task_workflow_statuses" },
       { version: 4, name: "add_task_dependencies" },
       { version: 5, name: "add_runs_and_agent_projects" },
+      { version: 6, name: "add_governance_approvals_and_budget" },
     ]);
 
     const taskStatuses = migratedDb
@@ -144,7 +145,7 @@ describe("database and task API", () => {
     const migrationCount = reopenedDb.query("SELECT COUNT(*) AS count FROM schema_migrations").get() as {
       count: number;
     };
-    expect(migrationCount.count).toBe(5);
+    expect(migrationCount.count).toBe(6);
     reopenedDb.close();
   });
 
@@ -1047,5 +1048,305 @@ describe("database and task API", () => {
     expect(emptyProjects.length).toBe(0);
 
     db.close();
+  });
+
+  describe("approvals API", () => {
+    test("GET /api/approvals returns empty list when no approvals exist", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const resp = await app.request("/api/approvals");
+      expect(resp.status).toBe(200);
+      const list = (await resp.json()) as Array<unknown>;
+      expect(Array.isArray(list)).toBe(true);
+      expect(list.length).toBe(0);
+
+      db.close();
+    });
+
+    test("POST /api/approvals creates an approval with pending status", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      expect(createAgentResp.status).toBe(201);
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      const createResp = await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent_id: agent.id,
+          reason: "Budget limit reached",
+        }),
+      });
+      expect(createResp.status).toBe(201);
+      const approval = (await createResp.json()) as {
+        id: string;
+        agent_id: string;
+        status: string;
+        reason: string;
+        run_id: string | null;
+        resolved_at: string | null;
+      };
+      expect(typeof approval.id).toBe("string");
+      expect(approval.agent_id).toBe(agent.id);
+      expect(approval.status).toBe("pending");
+      expect(approval.reason).toBe("Budget limit reached");
+      expect(approval.run_id).toBeNull();
+      expect(approval.resolved_at).toBeNull();
+
+      db.close();
+    });
+
+    test("POST /api/approvals validates required fields", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const resp = await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "missing agent_id" }),
+      });
+      expect(resp.status).toBe(400);
+
+      db.close();
+    });
+
+    test("PATCH /api/approvals/:id approves a pending approval", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      const createResp = await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agent.id, reason: "Budget exceeded" }),
+      });
+      const approval = (await createResp.json()) as { id: string; status: string };
+      expect(approval.status).toBe("pending");
+
+      const patchResp = await app.request(`/api/approvals/${approval.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "approved", resolved_by: "admin" }),
+      });
+      expect(patchResp.status).toBe(200);
+      const updated = (await patchResp.json()) as { status: string; resolved_by: string; resolved_at: string };
+      expect(updated.status).toBe("approved");
+      expect(updated.resolved_by).toBe("admin");
+      expect(typeof updated.resolved_at).toBe("string");
+
+      db.close();
+    });
+
+    test("PATCH /api/approvals/:id denies a pending approval", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      const createResp = await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agent.id, reason: "Suspicious operation" }),
+      });
+      const approval = (await createResp.json()) as { id: string };
+
+      const patchResp = await app.request(`/api/approvals/${approval.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "denied" }),
+      });
+      expect(patchResp.status).toBe(200);
+      const updated = (await patchResp.json()) as { status: string };
+      expect(updated.status).toBe("denied");
+
+      db.close();
+    });
+
+    test("PATCH /api/approvals/:id rejects invalid status values", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      const createResp = await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agent.id, reason: "Budget exceeded" }),
+      });
+      const approval = (await createResp.json()) as { id: string };
+
+      const patchResp = await app.request(`/api/approvals/${approval.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "hacked" }),
+      });
+      expect(patchResp.status).toBe(400);
+
+      db.close();
+    });
+
+    test("GET /api/approvals filters by status", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      // Create two approvals
+      const resp1 = await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agent.id, reason: "First" }),
+      });
+      const approval1 = (await resp1.json()) as { id: string };
+
+      await app.request("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent_id: agent.id, reason: "Second" }),
+      });
+
+      // Approve first
+      await app.request(`/api/approvals/${approval1.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "approved" }),
+      });
+
+      const pendingResp = await app.request("/api/approvals?status=pending");
+      const pending = (await pendingResp.json()) as Array<unknown>;
+      expect(pending.length).toBe(1);
+
+      const approvedResp = await app.request("/api/approvals?status=approved");
+      const approved = (await approvedResp.json()) as Array<unknown>;
+      expect(approved.length).toBe(1);
+
+      db.close();
+    });
+  });
+
+  describe("agent budget tracking", () => {
+    test("GET /api/agents/:id/budget returns budget info with no limit set", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      const budgetResp = await app.request(`/api/agents/${agent.id}/budget`);
+      expect(budgetResp.status).toBe(200);
+      const budget = (await budgetResp.json()) as {
+        budget_limit_cents: number | null;
+        spent_cents: number;
+        remaining_cents: number | null;
+      };
+      expect(budget.budget_limit_cents).toBeNull();
+      expect(budget.spent_cents).toBe(0);
+      expect(budget.remaining_cents).toBeNull();
+
+      db.close();
+    });
+
+    test("PATCH /api/agents/:id sets budget_limit_cents", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi" }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string; budget_limit_cents: number | null };
+
+      const patchResp = await app.request(`/api/agents/${agent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budget_limit_cents: 1000 }),
+      });
+      expect(patchResp.status).toBe(200);
+      const updated = (await patchResp.json()) as { budget_limit_cents: number | null };
+      expect(updated.budget_limit_cents).toBe(1000);
+
+      db.close();
+    });
+
+    test("GET /api/agents/:id/budget calculates spent from completed runs this month", async () => {
+      const db = createDatabase(":memory:");
+      const app = createApp(db);
+
+      const createAgentResp = await app.request("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "codex", type: "custom", command_template: "echo hi", budget_limit_cents: 500 }),
+      });
+      const agent = (await createAgentResp.json()) as { id: string };
+
+      // Insert a run with cost directly into the db to simulate spending
+      db.query(
+        "INSERT INTO runs (id, task_id, agent, status, cost_cents, started_at, completed_at) VALUES (?, ?, ?, 'done', ?, datetime('now'), datetime('now'))",
+      ).run("run-1", "task-1", "codex", 200);
+
+      const budgetResp = await app.request(`/api/agents/${agent.id}/budget`);
+      expect(budgetResp.status).toBe(200);
+      const budget = (await budgetResp.json()) as {
+        budget_limit_cents: number | null;
+        spent_cents: number;
+        remaining_cents: number | null;
+      };
+      expect(budget.budget_limit_cents).toBe(500);
+      expect(budget.spent_cents).toBe(200);
+      expect(budget.remaining_cents).toBe(300);
+
+      db.close();
+    });
+
+    test("migration 6 adds approvals table, cost_cents to runs, budget_limit_cents to agents", async () => {
+      const db = createDatabase(":memory:");
+
+      const tables = db
+        .query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+        .all() as Array<{ name: string }>;
+      const tableNames = tables.map((t) => t.name);
+      expect(tableNames).toContain("approvals");
+
+      const agentColumns = db.query("PRAGMA table_info(agents)").all() as Array<{ name: string }>;
+      expect(agentColumns.some((c) => c.name === "budget_limit_cents")).toBe(true);
+
+      const runColumns = db.query("PRAGMA table_info(runs)").all() as Array<{ name: string }>;
+      expect(runColumns.some((c) => c.name === "cost_cents")).toBe(true);
+
+      db.close();
+    });
   });
 });

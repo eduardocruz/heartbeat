@@ -16,6 +16,7 @@ type AgentRow = {
   heartbeat_prompt: string | null;
   heartbeat_repo: string | null;
   heartbeat_enabled: number;
+  budget_limit_cents: number | null;
   created_at: string;
 };
 
@@ -159,10 +160,17 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
 
     const heartbeatCron = optionalText(body.heartbeat_cron);
 
+    const budgetLimitCents =
+      "budget_limit_cents" in body
+        ? (typeof body.budget_limit_cents === "number" && body.budget_limit_cents >= 0
+          ? Math.floor(body.budget_limit_cents)
+          : null)
+        : null;
+
     try {
       const result = db
         .query(
-          "INSERT INTO agents (name, type, command_template, active, heartbeat_cron, heartbeat_prompt, heartbeat_repo, heartbeat_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO agents (name, type, command_template, active, heartbeat_cron, heartbeat_prompt, heartbeat_repo, heartbeat_enabled, budget_limit_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           body.name.trim(),
@@ -173,6 +181,7 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
           optionalText(body.heartbeat_prompt),
           optionalText(body.heartbeat_repo),
           body.heartbeat_enabled === 1 ? 1 : 0,
+          budgetLimitCents,
         );
 
       scheduler?.reload();
@@ -320,6 +329,14 @@ export function createAgentsRoutes(db: Database, scheduler?: Scheduler): Hono {
       }
       updates.push("heartbeat_enabled = ?");
       params.push(body.heartbeat_enabled);
+    }
+
+    if ("budget_limit_cents" in body) {
+      if (body.budget_limit_cents !== null && (typeof body.budget_limit_cents !== "number" || body.budget_limit_cents < 0)) {
+        return c.json({ error: "budget_limit_cents must be a non-negative integer or null" }, 400);
+      }
+      updates.push("budget_limit_cents = ?");
+      params.push(body.budget_limit_cents === null ? null : Math.floor(body.budget_limit_cents as number));
     }
 
     if (updates.length === 0) {
@@ -543,6 +560,31 @@ Format it as a proper markdown document, around 300-400 words. Make it feel like
     }
 
     return c.json({ ok: true });
+  });
+
+  agentsRoutes.get("/:id/budget", (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const spentRow = db
+      .query(
+        "SELECT COALESCE(SUM(cost_cents), 0) AS spent FROM runs WHERE agent = ? AND strftime('%Y-%m', started_at) = strftime('%Y-%m', 'now')",
+      )
+      .get(agent.name) as { spent: number };
+
+    const spentCents = spentRow.spent;
+    const budgetLimitCents = agent.budget_limit_cents ?? null;
+    const remainingCents = budgetLimitCents !== null ? Math.max(0, budgetLimitCents - spentCents) : null;
+
+    return c.json({
+      agent_id: agent.id,
+      agent_name: agent.name,
+      budget_limit_cents: budgetLimitCents,
+      spent_cents: spentCents,
+      remaining_cents: remainingCents,
+    });
   });
 
   agentsRoutes.delete("/:id", (c) => {

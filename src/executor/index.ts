@@ -14,10 +14,12 @@ type TaskRow = {
 };
 
 type AgentRow = {
+  id: string;
   name: string;
   command_template: string;
   active: number;
   soul_md: string | null;
+  budget_limit_cents: number | null;
 };
 
 type ExecutorOptions = {
@@ -187,7 +189,7 @@ export class Executor {
     }
 
     const agent = this.db
-      .query("SELECT name, command_template, active, soul_md FROM agents WHERE name = ? LIMIT 1")
+      .query("SELECT id, name, command_template, active, soul_md, budget_limit_cents FROM agents WHERE name = ? LIMIT 1")
       .get(task.agent) as AgentRow | null;
     if (!agent || agent.active !== 1) {
       this.failTask(task.id, "in_progress", `unknown agent: ${task.agent}`);
@@ -197,6 +199,28 @@ export class Executor {
     if (!agent.command_template.trim()) {
       this.failTask(task.id, "in_progress", `empty command template for agent: ${task.agent}`);
       return;
+    }
+
+    if (agent.budget_limit_cents !== null && agent.budget_limit_cents > 0) {
+      const spentRow = this.db
+        .query(
+          "SELECT COALESCE(SUM(cost_cents), 0) AS spent FROM runs WHERE agent = ? AND strftime('%Y-%m', started_at) = strftime('%Y-%m', 'now')",
+        )
+        .get(agent.name) as { spent: number };
+
+      if (spentRow.spent >= agent.budget_limit_cents) {
+        this.db
+          .query(
+            "INSERT INTO approvals (agent_id, task_id, reason, status) VALUES (?, ?, ?, 'pending')",
+          )
+          .run(agent.id, task.id, `Monthly budget limit of ${agent.budget_limit_cents} cents reached (spent: ${spentRow.spent} cents)`);
+
+        this.db
+          .query("UPDATE tasks SET status = 'blocked', updated_at = datetime('now') WHERE id = ?")
+          .run(task.id);
+
+        return;
+      }
     }
 
     const { command, prompt } = this.buildCommandWithPrompt(agent.command_template, task, agent.soul_md);

@@ -89,6 +89,7 @@ export const schema = {
         commit_hash TEXT,
         workspace_dir TEXT,
         timed_out INTEGER DEFAULT 0,
+        cost_cents INTEGER DEFAULT 0,
         started_at TEXT NOT NULL DEFAULT (datetime('now')),
         completed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -102,6 +103,21 @@ export const schema = {
         role TEXT DEFAULT 'contributor',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(agent_id, project_id)
+      );
+    `,
+  },
+  governance: {
+    approvals: `
+      CREATE TABLE IF NOT EXISTS approvals (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        agent_id TEXT NOT NULL,
+        run_id TEXT,
+        task_id TEXT,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        resolved_by TEXT,
+        resolved_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `,
   },

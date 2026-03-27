@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { Executor } from "../executor";
 import type { Scheduler } from "../executor/scheduler";
 import { createAgentsRoutes } from "./routes/agents";
+import { createApprovalsRoutes } from "./routes/approvals";
 import { createExecutorRoutes } from "./routes/executor";
 import { createRunsRoutes } from "./routes/runs";
 import { createProjectsRoutes } from "./routes/projects";
@@ -53,6 +54,7 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
 
   app.route("/api/tasks", createTasksRoutes(db));
   app.route("/api/agents", createAgentsRoutes(db, resolvedOptions.scheduler));
+  app.route("/api/approvals", createApprovalsRoutes(db));
   app.route("/api/projects", createProjectsRoutes(db));
   app.route("/api/runs", createRunsRoutes(db));
   app.route("/api/timeline", createTimelineRoutes());

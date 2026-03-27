@@ -100,6 +100,15 @@ const migrations: Migration[] = [
       db.exec(schema.execution.agentProjects);
     },
   },
+  {
+    version: 6,
+    name: "add_governance_approvals_and_budget",
+    apply(db) {
+      db.exec(schema.governance.approvals);
+      ensureColumn(db, "agents", "budget_limit_cents", "INTEGER");
+      ensureColumn(db, "runs", "cost_cents", "INTEGER DEFAULT 0");
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {
