@@ -29,6 +29,7 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
 
   app.get("/", (c) => c.html(appShellHtml));
   app.get("/agents", (c) => c.html(appShellHtml));
+  app.get("/runs", (c) => c.html(appShellHtml));
   app.get("/projects", (c) => c.html(appShellHtml));
   app.get("/timeline", (c) => c.html(appShellHtml));
 
@@ -53,7 +54,7 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   app.route("/api/tasks", createTasksRoutes(db));
   app.route("/api/agents", createAgentsRoutes(db, resolvedOptions.scheduler));
   app.route("/api/projects", createProjectsRoutes(db));
-  app.route("/api/runs", createRunsRoutes());
+  app.route("/api/runs", createRunsRoutes(db));
   app.route("/api/timeline", createTimelineRoutes());
   app.route("/api/heatmap", createHeatmapRoutes());
   if (resolvedOptions.executor) {

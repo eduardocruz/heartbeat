@@ -3,6 +3,7 @@ import { closeSync, openSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Command } from "commander";
+import * as yaml from "js-yaml";
 import { startServer } from "../server";
 import {
   DEFAULT_PORT,
@@ -406,6 +407,87 @@ async function commandAgentsShow(agent: string, options: { state: string }): Pro
   console.log(renderTable(["ID", "Title", "Status", "Priority", "Updated"], issueRows));
 }
 
+type ExportAgent = {
+  id: string;
+  name: string;
+  type: string;
+  command_template: string;
+  active: number;
+  heartbeat_cron: string | null;
+  heartbeat_enabled: number;
+  heartbeat_repo: string | null;
+};
+
+type ExportTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string | null;
+  agent: string | null;
+};
+
+type ExportProject = {
+  id: string;
+  name: string;
+  path: string;
+  source: string;
+  description: string | null;
+};
+
+async function commandExport(output: string | undefined, options: { state: string }): Promise<void> {
+  const statePath = resolve(options.state);
+  const state = readDaemonState(statePath);
+
+  if (!state || !isPidRunning(state.pid)) {
+    removeDaemonState(statePath);
+    throw new Error("HeartBeat is not running");
+  }
+
+  const baseUrl = `http://127.0.0.1:${state.port}`;
+  const [agents, tasks, projects] = await Promise.all([
+    fetchJson<ExportAgent[]>(`${baseUrl}/api/agents`),
+    fetchJson<ExportTask[]>(`${baseUrl}/api/tasks?limit=500`),
+    fetchJson<ExportProject[]>(`${baseUrl}/api/projects`),
+  ]);
+
+  const exportData = {
+    version: "0.2.6",
+    exported_at: new Date().toISOString(),
+    agents: agents.map((a) => ({
+      name: a.name,
+      type: a.type,
+      command_template: a.command_template,
+      active: a.active === 1,
+      heartbeat_enabled: a.heartbeat_enabled === 1,
+      heartbeat_cron: a.heartbeat_cron,
+      heartbeat_repo: a.heartbeat_repo,
+    })),
+    tasks: tasks.map((t) => ({
+      title: t.title,
+      description: t.description,
+      status: t.status,
+      priority: t.priority,
+      agent: t.agent,
+    })),
+    projects: projects.map((p) => ({
+      name: p.name,
+      path: p.path,
+      source: p.source,
+      description: p.description,
+    })),
+  };
+
+  const yamlStr = yaml.dump(exportData, { lineWidth: 120, noRefs: true });
+
+  if (output) {
+    writeFileSync(resolve(output), yamlStr, "utf8");
+    console.log(`Exported to ${resolve(output)}`);
+  } else {
+    console.log(yamlStr);
+  }
+}
+
 export async function runCli(argv = process.argv): Promise<void> {
   const defaultStatePath = getDefaultStatePath();
   const defaultLogPath = getDefaultLogPath();
@@ -462,7 +544,7 @@ export async function runCli(argv = process.argv): Promise<void> {
   agentsCommand.alias("agent");
 
   agentsCommand
-    .command("list")
+    .command("list", { isDefault: true })
     .alias("ls")
     .description("List all configured agents")
     .option("--state <path>", "Daemon state file", defaultStatePath)
@@ -475,6 +557,13 @@ export async function runCli(argv = process.argv): Promise<void> {
     .argument("<agent>", "Agent id or name")
     .option("--state <path>", "Daemon state file", defaultStatePath)
     .action(commandAgentsShow);
+
+  program
+    .command("export")
+    .description("Export agents, tasks, and projects as YAML")
+    .argument("[output]", "Output file path (prints to stdout if omitted)")
+    .option("--state <path>", "Daemon state file", defaultStatePath)
+    .action(commandExport);
 
   program
     .command("update")

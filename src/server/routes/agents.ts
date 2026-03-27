@@ -475,6 +475,76 @@ Format it as a proper markdown document, around 300-400 words. Make it feel like
     }
   });
 
+  agentsRoutes.get("/:id/projects", (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const projects = db
+      .query(
+        "SELECT p.*, ap.role AS agent_role FROM agent_projects ap JOIN projects p ON ap.project_id = p.id WHERE ap.agent_id = ? ORDER BY p.name ASC",
+      )
+      .all(agent.id);
+    return c.json(projects);
+  });
+
+  agentsRoutes.post("/:id/projects", async (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const bodyResult = await readJsonObject(c);
+    if (bodyResult instanceof Response) {
+      return bodyResult;
+    }
+    const body = bodyResult;
+
+    if (!isNonEmptyString(body.project_id)) {
+      return c.json({ error: "project_id is required" }, 400);
+    }
+
+    const project = db.query("SELECT id FROM projects WHERE id = ?").get(body.project_id) as { id: string } | null;
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    const role = typeof body.role === "string" ? body.role.trim() : "contributor";
+
+    try {
+      db.query("INSERT INTO agent_projects (agent_id, project_id, role) VALUES (?, ?, ?)").run(
+        agent.id,
+        body.project_id,
+        role,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("UNIQUE")) {
+        return c.json({ error: "Agent is already linked to this project" }, 400);
+      }
+      throw error;
+    }
+
+    return c.json({ ok: true, agent_id: agent.id, project_id: body.project_id, role }, 201);
+  });
+
+  agentsRoutes.delete("/:id/projects/:projectId", (c) => {
+    const agent = findAgent(db, c.req.param("id"));
+    if (!agent) {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    const result = db
+      .query("DELETE FROM agent_projects WHERE agent_id = ? AND project_id = ?")
+      .run(agent.id, c.req.param("projectId"));
+
+    if (result.changes === 0) {
+      return c.json({ error: "Agent-project link not found" }, 404);
+    }
+
+    return c.json({ ok: true });
+  });
+
   agentsRoutes.delete("/:id", (c) => {
     const id = c.req.param("id");
     const existing = db.query("SELECT * FROM agents WHERE id = ?").get(id) as AgentRow | null;

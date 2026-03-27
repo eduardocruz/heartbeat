@@ -76,4 +76,33 @@ export const schema = {
       );
     `,
   },
+  execution: {
+    runs: `
+      CREATE TABLE IF NOT EXISTS runs (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        task_id TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        exit_code INTEGER,
+        stdout TEXT,
+        stderr TEXT,
+        commit_hash TEXT,
+        workspace_dir TEXT,
+        timed_out INTEGER DEFAULT 0,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+    agentProjects: `
+      CREATE TABLE IF NOT EXISTS agent_projects (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        agent_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        role TEXT DEFAULT 'contributor',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(agent_id, project_id)
+      );
+    `,
+  },
 };

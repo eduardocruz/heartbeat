@@ -461,6 +461,40 @@ export function createTasksRoutes(db: Database): Hono {
     return c.json(attachTaskDependencies(db, updated));
   });
 
+  tasksRoutes.post("/:id/retry", (c) => {
+    const id = c.req.param("id");
+    const existing = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null;
+    if (!existing) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    if (existing.status !== "failed" && existing.status !== "cancelled") {
+      return c.json({ error: `Can only retry tasks with status failed or cancelled, current status: ${existing.status}` }, 400);
+    }
+
+    db.query(
+      "UPDATE tasks SET status = 'todo', exit_code = NULL, stdout = NULL, stderr = NULL, started_at = NULL, completed_at = NULL, updated_at = datetime('now') WHERE id = ?",
+    ).run(id);
+
+    insertTaskComment(db, id, `Task requeued for retry (was ${existing.status})`, "todo", null);
+
+    const updated = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow;
+    return c.json(attachTaskDependencies(db, updated));
+  });
+
+  tasksRoutes.get("/:id/runs", (c) => {
+    const id = c.req.param("id");
+    const existing = db.query("SELECT id FROM tasks WHERE id = ?").get(id) as { id: string } | null;
+    if (!existing) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    const runs = db
+      .query("SELECT * FROM runs WHERE task_id = ? ORDER BY started_at DESC")
+      .all(id);
+    return c.json(runs);
+  });
+
   tasksRoutes.delete("/:id", (c) => {
     const id = c.req.param("id");
     const existing = db.query("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | null;

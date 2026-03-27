@@ -104,6 +104,40 @@ export class Executor {
       .get() as TaskRow | null;
   }
 
+  private createRun(taskId: string, agent: string, workspaceDir: string | null): string {
+    const result = this.db
+      .query(
+        "INSERT INTO runs (task_id, agent, status, workspace_dir) VALUES (?, ?, 'running', ?)",
+      )
+      .run(taskId, agent, workspaceDir);
+    const row = this.db.query("SELECT id FROM runs WHERE rowid = ?").get(result.lastInsertRowid) as { id: string };
+    return row.id;
+  }
+
+  private completeRun(
+    runId: string,
+    exitCode: number | null,
+    stdout: string,
+    stderr: string,
+    timedOut: boolean,
+    commitHash: string | null,
+  ): void {
+    const status = timedOut || exitCode !== 0 ? "failed" : "done";
+    this.db
+      .query(
+        "UPDATE runs SET status = ?, exit_code = ?, stdout = ?, stderr = ?, commit_hash = ?, timed_out = ?, completed_at = datetime('now') WHERE id = ?",
+      )
+      .run(status, exitCode, stdout, stderr, commitHash, timedOut ? 1 : 0, runId);
+  }
+
+  private failRun(runId: string, message: string): void {
+    this.db
+      .query(
+        "UPDATE runs SET status = 'failed', stderr = ?, completed_at = datetime('now') WHERE id = ?",
+      )
+      .run(message, runId);
+  }
+
   private updateTaskStart(taskId: string): void {
     this.db
       .query(
@@ -179,6 +213,8 @@ export class Executor {
 
     cleanupOldWorkspaces();
 
+    const runId = this.createRun(task.id, task.agent, workdir !== "/tmp" ? workdir : null);
+
     // For claude --print, pass prompt via stdin to avoid shell quoting issues
     const isClaudeCommand = command.trimStart().startsWith("claude");
     const stdinContent = isClaudeCommand ? prompt : null;
@@ -209,9 +245,11 @@ export class Executor {
       if (!timedOut && exitCode === 0 && task.repo_url) {
         commitHash = await getLatestCommit(workdir);
       }
+      this.completeRun(runId, exitCode, stdout, stderr, timedOut, commitHash);
       this.completeTask(task.id, "in_progress", exitCode, stdout, stderr, timedOut, timeoutSec, commitHash);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      this.failRun(runId, message);
       this.failTask(task.id, "in_progress", message);
     } finally {
       clearTimeout(timeout);

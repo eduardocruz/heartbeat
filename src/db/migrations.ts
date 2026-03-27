@@ -92,6 +92,14 @@ const migrations: Migration[] = [
       db.exec(schema.workflow.taskDependencies);
     },
   },
+  {
+    version: 5,
+    name: "add_runs_and_agent_projects",
+    apply(db) {
+      db.exec(schema.execution.runs);
+      db.exec(schema.execution.agentProjects);
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {

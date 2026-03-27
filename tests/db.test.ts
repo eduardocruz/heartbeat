@@ -109,6 +109,7 @@ describe("database and task API", () => {
       { version: 2, name: "add_workflow_tables_and_columns" },
       { version: 3, name: "normalize_task_workflow_statuses" },
       { version: 4, name: "add_task_dependencies" },
+      { version: 5, name: "add_runs_and_agent_projects" },
     ]);
 
     const taskStatuses = migratedDb
@@ -143,7 +144,7 @@ describe("database and task API", () => {
     const migrationCount = reopenedDb.query("SELECT COUNT(*) AS count FROM schema_migrations").get() as {
       count: number;
     };
-    expect(migrationCount.count).toBe(4);
+    expect(migrationCount.count).toBe(5);
     reopenedDb.close();
   });
 
@@ -230,6 +231,45 @@ describe("database and task API", () => {
       status: "in_review",
       reviewer: "ceo",
     });
+
+    db.close();
+  });
+
+  test("allows assignee-only task reassignment without changing workflow status", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const createResp = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Reassign ownership",
+        description: "Move this task to another agent",
+        priority: "high",
+        agent: "codex",
+      }),
+    });
+
+    expect(createResp.status).toBe(201);
+    const created = (await createResp.json()) as { id: string; status: string; agent: string | null };
+    expect(created.status).toBe("todo");
+    expect(created.agent).toBe("codex");
+
+    const reassignResp = await app.request(`/api/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: "claude" }),
+    });
+
+    expect(reassignResp.status).toBe(200);
+    const reassigned = (await reassignResp.json()) as { status: string; agent: string | null };
+    expect(reassigned.status).toBe("todo");
+    expect(reassigned.agent).toBe("claude");
+
+    const commentsResp = await app.request(`/api/tasks/${created.id}/comments`);
+    expect(commentsResp.status).toBe(200);
+    const comments = (await commentsResp.json()) as Array<{ body: string }>;
+    expect(comments).toHaveLength(0);
 
     db.close();
   });
@@ -895,6 +935,117 @@ describe("database and task API", () => {
     expect(total.count).toBe(1);
 
     scheduler.stop();
+    db.close();
+  });
+
+  test("runs API returns execution history", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    // Insert a task and a run manually
+    db.query("INSERT INTO tasks (id, title, status, agent) VALUES (?, ?, ?, ?)").run("t1", "Test task", "done", "bot");
+    db.query("INSERT INTO runs (id, task_id, agent, status, exit_code, started_at, completed_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))").run("r1", "t1", "bot", "done", 0);
+
+    const listRes = await app.request("/api/runs");
+    expect(listRes.status).toBe(200);
+    const runs = (await listRes.json()) as Array<{ id: string; task_title: string }>;
+    expect(runs.length).toBe(1);
+    expect(runs[0].id).toBe("r1");
+    expect(runs[0].task_title).toBe("Test task");
+
+    const getRes = await app.request("/api/runs/r1");
+    expect(getRes.status).toBe(200);
+    const run = (await getRes.json()) as { id: string; agent: string };
+    expect(run.id).toBe("r1");
+    expect(run.agent).toBe("bot");
+
+    const notFound = await app.request("/api/runs/nonexistent");
+    expect(notFound.status).toBe(404);
+
+    db.close();
+  });
+
+  test("task retry requeues failed tasks", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    // Create a failed task
+    const createRes = await app.request("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Retry me", agent: "bot" }),
+    });
+    const task = (await createRes.json()) as { id: string };
+
+    // Move to in_progress then failed
+    await app.request(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "in_progress" }),
+    });
+    await app.request(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "failed" }),
+    });
+
+    // Retry
+    const retryRes = await app.request(`/api/tasks/${task.id}/retry`, { method: "POST" });
+    expect(retryRes.status).toBe(200);
+    const retried = (await retryRes.json()) as { id: string; status: string };
+    expect(retried.status).toBe("todo");
+
+    // Cannot retry a todo task
+    const badRetry = await app.request(`/api/tasks/${task.id}/retry`, { method: "POST" });
+    expect(badRetry.status).toBe(400);
+
+    db.close();
+  });
+
+  test("agent-project relationships CRUD", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    // Create an agent
+    const agentRes = await app.request("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "worker", type: "claude", command_template: "echo hi" }),
+    });
+    const agent = (await agentRes.json()) as { id: string };
+
+    // Create a project
+    const projectRes = await app.request("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "myproj", path: "/tmp/myproj" }),
+    });
+    const project = (await projectRes.json()) as { id: string };
+
+    // Link agent to project
+    const linkRes = await app.request(`/api/agents/${agent.id}/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: project.id, role: "lead" }),
+    });
+    expect(linkRes.status).toBe(201);
+
+    // List agent projects
+    const listRes = await app.request(`/api/agents/${agent.id}/projects`);
+    expect(listRes.status).toBe(200);
+    const projects = (await listRes.json()) as Array<{ name: string; agent_role: string }>;
+    expect(projects.length).toBe(1);
+    expect(projects[0].name).toBe("myproj");
+    expect(projects[0].agent_role).toBe("lead");
+
+    // Delete the link
+    const delRes = await app.request(`/api/agents/${agent.id}/projects/${project.id}`, { method: "DELETE" });
+    expect(delRes.status).toBe(200);
+
+    const emptyList = await app.request(`/api/agents/${agent.id}/projects`);
+    const emptyProjects = (await emptyList.json()) as Array<unknown>;
+    expect(emptyProjects.length).toBe(0);
+
     db.close();
   });
 });

@@ -56,6 +56,7 @@
           </div>
           <nav class="flex gap-2 rounded-lg bg-slate-800/80 p-1" aria-label="Primary">
             <button data-view="tasks" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Tasks</button>
+            <button data-view="runs" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Runs</button>
             <button data-view="agents" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Agents</button>
             <button data-view="projects" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Projects</button>
             <button data-view="timeline" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Timeline</button>
@@ -210,6 +211,34 @@
           </div>
         </section>
 
+        <section id="runs-view" class="hidden space-y-4">
+          <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">Execution Runs</h2>
+                <p class="mt-1 text-sm text-slate-300">History of all task executions with output and timing.</p>
+              </div>
+            </div>
+          </div>
+          <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
+                  <tr>
+                    <th class="px-4 py-3">Task</th>
+                    <th class="px-4 py-3">Agent</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Exit</th>
+                    <th class="px-4 py-3">Started</th>
+                    <th class="px-4 py-3">Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="runs-table" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <section id="timeline-view" class="hidden space-y-4">
           <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -284,8 +313,12 @@
       const state = {
         tasks: [],
         agents: [],
+        agentDetails: {},
         projects: [],
+        runs: [],
         expandedTaskId: null,
+        expandedAgentId: null,
+        expandedRunId: null,
         taskComments: {},
         taskFeedback: {},
         expandedProjectId: null,
@@ -328,6 +361,7 @@
 
       function openView(view) {
         document.getElementById("tasks-view").classList.toggle("hidden", view !== "tasks");
+        document.getElementById("runs-view").classList.toggle("hidden", view !== "runs");
         document.getElementById("agents-view").classList.toggle("hidden", view !== "agents");
         document.getElementById("projects-view").classList.toggle("hidden", view !== "projects");
         document.getElementById("timeline-view").classList.toggle("hidden", view !== "timeline");
@@ -341,6 +375,7 @@
 
         const url = new URL(window.location.href);
         if (view === "agents") url.pathname = "/agents";
+        else if (view === "runs") url.pathname = "/runs";
         else if (view === "projects") url.pathname = "/projects";
         else if (view === "timeline") url.pathname = "/timeline";
         else url.pathname = "/";
@@ -348,6 +383,7 @@
 
         if (view === "projects") loadProjects();
         if (view === "timeline") loadTimeline();
+        if (view === "runs") loadRuns();
       }
 
       function relativeTime(raw) {
@@ -548,6 +584,7 @@
                     <button class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Save update</button>
                     <button class="task-reassign-button rounded-md border border-amber-600 px-3 py-2 text-sm text-amber-100 hover:bg-amber-950/40" type="button" data-task-id="${task.id}" data-current-agent="${escapeHtml(task.agent || "")}">Reassign task</button>
                     <button class="task-note-button rounded-md border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800" type="button" data-task-id="${task.id}">Add note only</button>
+                    ${task.status === "failed" || task.status === "cancelled" ? `<button class="task-retry-button rounded-md border border-emerald-600 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-950/40" type="button" data-task-id="${task.id}">Retry</button>` : ""}
                   </div>
                   ${feedbackHtml}
                 </form>
@@ -661,6 +698,106 @@
             }
           };
         });
+
+        tbody.querySelectorAll(".task-retry-button").forEach((button) => {
+          button.onclick = async () => {
+            const taskId = button.dataset.taskId;
+            try {
+              setTaskFeedback(taskId, "info", "Requeuing task...");
+              renderTasks();
+              await api(`/api/tasks/${taskId}/retry`, { method: "POST" });
+              setTaskFeedback(taskId, "success", "Task requeued for retry.");
+              state.taskComments[taskId] = null;
+              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
+            } catch (error) {
+              setTaskFeedback(taskId, "error", error.message);
+              renderTasks();
+            }
+          };
+        });
+      }
+
+      function formatDuration(startedAt, completedAt) {
+        if (!startedAt) return "-";
+        const startMs = Date.parse(startedAt);
+        if (!Number.isFinite(startMs)) return "-";
+        const endMs = completedAt ? Date.parse(completedAt) : Date.now();
+        if (!Number.isFinite(endMs)) return "-";
+        const sec = Math.max(0, Math.round((endMs - startMs) / 1000));
+        if (sec < 60) return sec + "s";
+        const min = Math.floor(sec / 60);
+        if (min < 60) return min + "m " + (sec % 60) + "s";
+        return Math.floor(min / 60) + "h " + (min % 60) + "m";
+      }
+
+      const RUN_STATUS_BADGE = {
+        running: "bg-blue-600 text-blue-100 status-running",
+        done: "bg-emerald-600 text-emerald-100",
+        failed: "bg-rose-600 text-rose-100",
+      };
+
+      async function loadRuns() {
+        try {
+          state.runs = await api("/api/runs?limit=100");
+          renderRuns();
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      function renderRuns() {
+        const tbody = document.getElementById("runs-table");
+        tbody.innerHTML = "";
+        const runs = state.runs || [];
+
+        if (runs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No execution runs yet.</td></tr>';
+          return;
+        }
+
+        for (const run of runs) {
+          const tr = document.createElement("tr");
+          tr.className = "cursor-pointer hover:bg-slate-800/70";
+          const badge = RUN_STATUS_BADGE[run.status] || "bg-slate-700 text-slate-100";
+          tr.innerHTML = `
+            <td class="px-4 py-3 font-medium">${escapeHtml(run.task_title || run.task_id)}</td>
+            <td class="px-4 py-3">${escapeHtml(run.agent)}</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge}">${escapeHtml(run.status)}</span></td>
+            <td class="px-4 py-3 mono text-xs">${run.exit_code !== null ? run.exit_code : "-"}</td>
+            <td class="px-4 py-3 text-slate-300">${relativeTime(run.started_at)}</td>
+            <td class="px-4 py-3 text-slate-300">${formatDuration(run.started_at, run.completed_at)}</td>
+          `;
+          tr.onclick = () => {
+            state.expandedRunId = state.expandedRunId === run.id ? null : run.id;
+            renderRuns();
+          };
+          tbody.appendChild(tr);
+
+          if (state.expandedRunId === run.id) {
+            const details = document.createElement("tr");
+            details.innerHTML = `
+              <td colspan="6" class="space-y-3 bg-slate-950/90 px-4 py-4">
+                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3">
+                  <p><span class="text-slate-400">Run ID:</span> <span class="mono text-xs">${escapeHtml(run.id)}</span></p>
+                  <p><span class="text-slate-400">Commit:</span> ${escapeHtml(run.commit_hash || "-")}</p>
+                  <p><span class="text-slate-400">Timed Out:</span> ${run.timed_out ? "Yes" : "No"}</p>
+                  <p><span class="text-slate-400">Workspace:</span> <span class="mono text-xs">${escapeHtml(run.workspace_dir || "-")}</span></p>
+                </div>
+                <div class="grid gap-3 lg:grid-cols-2">
+                  <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Stdout</p>
+                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-emerald-200">${escapeHtml(run.stdout || "")}</pre>
+                  </div>
+                  <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Stderr</p>
+                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-rose-200">${escapeHtml(run.stderr || "")}</pre>
+                  </div>
+                </div>
+              </td>
+            `;
+            tbody.appendChild(details);
+          }
+        }
       }
 
       async function loadAgentDetails(agentId) {
@@ -1457,7 +1594,7 @@
       (async function init() {
         renderStatusTabs();
         const path = window.location.pathname;
-        openView(path === "/agents" ? "agents" : path === "/projects" ? "projects" : path === "/timeline" ? "timeline" : "tasks");
+        openView(path === "/agents" ? "agents" : path === "/runs" ? "runs" : path === "/projects" ? "projects" : path === "/timeline" ? "timeline" : "tasks");
         await loadAgents();
         await loadTasks();
       })();
