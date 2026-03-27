@@ -4,49 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HeartBeat</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      :root {
-        color-scheme: dark;
-      }
-      body {
-        background: radial-gradient(circle at top, #1f2937 0%, #0b1020 45%, #05070f 100%);
-      }
-      .mono {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      }
-      .status-running::before {
-        content: "";
-        display: inline-block;
-        width: 0.45rem;
-        height: 0.45rem;
-        border-radius: 999px;
-        background: #3b82f6;
-        margin-right: 0.4rem;
-        animation: pulse 1.3s infinite;
-      }
-      .heartbeat-dot {
-        display: inline-block;
-        width: 0.5rem;
-        height: 0.5rem;
-        border-radius: 999px;
-        background: #22c55e;
-        box-shadow: 0 0 0 rgba(34, 197, 94, 0.6);
-        animation: heartbeatPulse 1.6s infinite;
-      }
-      @keyframes heartbeatPulse {
-        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-        70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
-        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-      }
-      @keyframes pulse {
-        0% { opacity: 0.4; transform: scale(0.85); }
-        70% { opacity: 1; transform: scale(1); }
-        100% { opacity: 0.4; transform: scale(0.85); }
-      }
-    </style>
+    <link rel="stylesheet" href="/app.css" />
   </head>
   <body class="min-h-screen text-slate-100">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <header class="rounded-xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-xl backdrop-blur">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -54,36 +15,65 @@
             <h1 class="text-2xl font-semibold tracking-tight">HeartBeat</h1>
             <p class="text-sm text-slate-300">Task orchestration dashboard</p>
           </div>
-          <nav class="flex gap-2 rounded-lg bg-slate-800/80 p-1" aria-label="Primary">
-            <button data-view="tasks" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Tasks</button>
-            <button data-view="runs" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Runs</button>
-            <button data-view="agents" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Agents</button>
-            <button data-view="projects" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Projects</button>
-            <button data-view="timeline" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Timeline</button>
-            <button data-view="approvals" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Approvals</button>
+          <nav class="nav-tabs" aria-label="Primary">
+            <button data-view="tasks" class="nav-tab view-tab">Tasks</button>
+            <button data-view="runs" class="nav-tab view-tab">Runs</button>
+            <button data-view="agents" class="nav-tab view-tab">Agents</button>
+            <button data-view="projects" class="nav-tab view-tab">Projects</button>
+            <button data-view="timeline" class="nav-tab view-tab">Timeline</button>
+            <button data-view="approvals" class="nav-tab view-tab">Approvals</button>
           </nav>
         </div>
       </header>
 
-      <main class="mt-5 space-y-6">
+      <main id="main-content" class="mt-5 space-y-6">
         <section id="tasks-view" class="space-y-4">
           <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-wrap gap-2" id="status-tabs"></div>
-              <button id="open-task-modal" class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400">New Task</button>
+              <button id="open-task-modal" class="btn btn-primary btn-sm">New Task</button>
+            </div>
+            <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
+              <label class="text-sm text-slate-300">
+                <span class="text-xs uppercase tracking-wide text-slate-400">Search Tasks</span>
+                <input id="tasks-search" placeholder="Search title, agent, status" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
+              </label>
+              <label class="text-sm text-slate-300">
+                <span class="text-xs uppercase tracking-wide text-slate-400">Sort</span>
+                <select id="tasks-sort" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2">
+                  <option value="created_desc">Newest first</option>
+                  <option value="created_asc">Oldest first</option>
+                  <option value="priority_desc">Priority high to low</option>
+                  <option value="priority_asc">Priority low to high</option>
+                  <option value="title_asc">Title A-Z</option>
+                </select>
+              </label>
+              <label class="text-sm text-slate-300">
+                <span class="text-xs uppercase tracking-wide text-slate-400">Rows</span>
+                <select id="tasks-page-size" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2">
+                  <option value="10">10</option>
+                  <option value="25" selected>25</option>
+                  <option value="50">50</option>
+                </select>
+              </label>
+              <div class="flex items-end text-xs text-slate-400" id="tasks-page-meta">0 tasks</div>
+              <div class="flex items-end gap-2">
+                <button id="tasks-prev-page" class="btn btn-secondary btn-xs" type="button">Prev</button>
+                <button id="tasks-next-page" class="btn btn-secondary btn-xs" type="button">Next</button>
+              </div>
             </div>
           </div>
 
           <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
             <div class="overflow-x-auto">
-              <table class="min-w-full text-left text-sm">
+              <table class="min-w-full text-left text-sm responsive-table">
                 <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
                   <tr>
-                    <th class="px-4 py-3">Title</th>
-                    <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3">Agent</th>
-                    <th class="px-4 py-3">Priority</th>
-                    <th class="px-4 py-3">Created</th>
+                    <th scope="col" class="px-4 py-3">Title</th>
+                    <th scope="col" class="px-4 py-3">Status</th>
+                    <th scope="col" class="px-4 py-3">Agent</th>
+                    <th scope="col" class="px-4 py-3">Priority</th>
+                    <th scope="col" class="px-4 py-3">Created</th>
                   </tr>
                 </thead>
                 <tbody id="tasks-table" class="divide-y divide-slate-800"></tbody>
@@ -100,8 +90,8 @@
                 <p class="mt-1 text-sm text-slate-300">Manage tracked project directories.</p>
               </div>
               <div class="flex gap-2">
-                <button id="scan-projects" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500">Scan Machine</button>
-                <button id="open-project-form" class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400">Add Project</button>
+                <button id="scan-projects" class="btn btn-success btn-sm">Scan Machine</button>
+                <button id="open-project-form" class="btn btn-primary btn-sm">Add Project</button>
               </div>
             </div>
             <div id="scan-toast" class="mt-3 hidden rounded-md border border-emerald-700 bg-emerald-900/50 px-3 py-2 text-sm text-emerald-200"></div>
@@ -120,23 +110,23 @@
                 <input id="project-description" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
               </label>
               <div class="flex items-end gap-2">
-                <button class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Save Project</button>
-                <button id="cancel-project-form" class="rounded-md border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" type="button">Cancel</button>
+                <button class="btn btn-primary btn-sm" type="submit">Save Project</button>
+                <button id="cancel-project-form" class="btn btn-secondary btn-sm" type="button">Cancel</button>
               </div>
             </form>
           </div>
 
           <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
             <div class="overflow-x-auto">
-              <table class="min-w-full text-left text-sm">
+              <table class="min-w-full text-left text-sm responsive-table">
                 <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
                   <tr>
-                    <th class="px-4 py-3">Name</th>
-                    <th class="px-4 py-3">Path</th>
-                    <th class="px-4 py-3">Source</th>
-                    <th class="px-4 py-3">Usage</th>
-                    <th class="px-4 py-3">Created</th>
-                    <th class="px-4 py-3">Actions</th>
+                    <th scope="col" class="px-4 py-3">Name</th>
+                    <th scope="col" class="px-4 py-3">Path</th>
+                    <th scope="col" class="px-4 py-3">Source</th>
+                    <th scope="col" class="px-4 py-3">Usage</th>
+                    <th scope="col" class="px-4 py-3">Created</th>
+                    <th scope="col" class="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="projects-table" class="divide-y divide-slate-800"></tbody>
@@ -152,7 +142,7 @@
                 <h2 class="text-lg font-semibold">Agent Configuration</h2>
                 <p class="mt-1 text-sm text-slate-300">Manage available executors, command templates, and recurring heartbeats.</p>
               </div>
-              <button id="open-hire-modal" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500">Hire Agent</button>
+              <button id="open-hire-modal" class="btn btn-success btn-sm">Hire Agent</button>
             </div>
           </div>
 
@@ -187,23 +177,23 @@
                 Heartbeat Enabled
               </label>
               <div class="flex items-end gap-2">
-                <button class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Save Agent</button>
-                <button id="reset-agent-form" class="rounded-md border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" type="button">Clear</button>
+                <button class="btn btn-primary btn-sm" type="submit">Save Agent</button>
+                <button id="reset-agent-form" class="btn btn-secondary btn-sm" type="button">Clear</button>
               </div>
             </form>
           </div>
 
           <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
             <div class="overflow-x-auto">
-              <table class="min-w-full text-left text-sm">
+              <table class="min-w-full text-left text-sm responsive-table">
                 <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
                   <tr>
-                    <th class="px-4 py-3">Name</th>
-                    <th class="px-4 py-3">Type</th>
-                    <th class="px-4 py-3">Heartbeat</th>
-                    <th class="px-4 py-3">Next Run</th>
-                    <th class="px-4 py-3">Active</th>
-                    <th class="px-4 py-3">Actions</th>
+                    <th scope="col" class="px-4 py-3">Name</th>
+                    <th scope="col" class="px-4 py-3">Type</th>
+                    <th scope="col" class="px-4 py-3">Heartbeat</th>
+                    <th scope="col" class="px-4 py-3">Next Run</th>
+                    <th scope="col" class="px-4 py-3">Active</th>
+                    <th scope="col" class="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="agents-table" class="divide-y divide-slate-800"></tbody>
@@ -224,16 +214,16 @@
           </div>
           <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
             <div class="overflow-x-auto">
-              <table class="min-w-full text-left text-sm">
+              <table class="min-w-full text-left text-sm responsive-table">
                 <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
                   <tr>
-                    <th class="px-4 py-3">Task</th>
-                    <th class="px-4 py-3">Agent</th>
-                    <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3">Exit</th>
-                    <th class="px-4 py-3">Started</th>
-                    <th class="px-4 py-3">Duration</th>
-                    <th class="px-4 py-3">Cost</th>
+                    <th scope="col" class="px-4 py-3">Task</th>
+                    <th scope="col" class="px-4 py-3">Agent</th>
+                    <th scope="col" class="px-4 py-3">Status</th>
+                    <th scope="col" class="px-4 py-3">Exit</th>
+                    <th scope="col" class="px-4 py-3">Started</th>
+                    <th scope="col" class="px-4 py-3">Duration</th>
+                    <th scope="col" class="px-4 py-3">Cost</th>
                   </tr>
                 </thead>
                 <tbody id="runs-table" class="divide-y divide-slate-800"></tbody>
@@ -271,15 +261,15 @@
           </div>
           <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
             <div class="overflow-x-auto">
-              <table class="min-w-full text-left text-sm">
+              <table class="min-w-full text-left text-sm responsive-table">
                 <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
                   <tr>
-                    <th class="px-4 py-3">Reason</th>
-                    <th class="px-4 py-3">Agent</th>
-                    <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3">Linked Task</th>
-                    <th class="px-4 py-3">Created</th>
-                    <th class="px-4 py-3">Actions</th>
+                    <th scope="col" class="px-4 py-3">Reason</th>
+                    <th scope="col" class="px-4 py-3">Agent</th>
+                    <th scope="col" class="px-4 py-3">Status</th>
+                    <th scope="col" class="px-4 py-3">Linked Task</th>
+                    <th scope="col" class="px-4 py-3">Created</th>
+                    <th scope="col" class="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="approvals-table" class="divide-y divide-slate-800"></tbody>
@@ -290,11 +280,11 @@
       </main>
     </div>
 
-    <dialog id="task-modal" class="w-full max-w-xl rounded-xl border border-slate-600 bg-slate-900 p-0 text-slate-100 backdrop:bg-black/70">
+    <dialog id="task-modal" aria-labelledby="task-modal-title" class="w-full max-w-xl rounded-xl border border-slate-600 bg-slate-900 p-0 text-slate-100 backdrop:bg-black/70">
       <form id="task-form" class="space-y-4 p-5">
         <div class="flex items-start justify-between gap-3">
-          <h2 class="text-lg font-semibold">Create Task</h2>
-          <button id="close-task-modal" type="button" class="rounded-md border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">Close</button>
+          <h2 id="task-modal-title" class="text-lg font-semibold">Create Task</h2>
+          <button id="close-task-modal" type="button" class="btn btn-secondary btn-xs" aria-label="Close task modal">Close</button>
         </div>
         <label class="block text-sm">Title
           <input id="task-title" required class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
@@ -318,15 +308,15 @@
         <label class="block text-sm">Repo URL (optional)
           <input id="task-repo" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
         </label>
-        <button class="w-full rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Create Task</button>
+        <button class="btn btn-primary btn-sm w-full" type="submit">Create Task</button>
       </form>
     </dialog>
 
-    <dialog id="hire-modal" class="w-full max-w-3xl rounded-xl border border-slate-600 bg-slate-900 p-0 text-slate-100 backdrop:bg-black/70">
+    <dialog id="hire-modal" aria-labelledby="hire-modal-title" class="w-full max-w-3xl rounded-xl border border-slate-600 bg-slate-900 p-0 text-slate-100 backdrop:bg-black/70">
       <div class="p-5">
         <div class="flex items-start justify-between gap-3 mb-4">
           <h2 class="text-lg font-semibold" id="hire-modal-title">Hire Agent</h2>
-          <button id="close-hire-modal" type="button" class="rounded-md border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">Close</button>
+          <button id="close-hire-modal" type="button" class="btn btn-secondary btn-xs" aria-label="Close hire modal">Close</button>
         </div>
         <div id="hire-modal-content">
           <div class="flex items-center justify-center py-12">
@@ -339,1460 +329,7 @@
       </div>
     </dialog>
 
-    <div id="hire-toast" class="fixed bottom-6 right-6 z-50 hidden rounded-lg border border-emerald-700 bg-emerald-900/90 px-4 py-3 text-sm text-emerald-200 shadow-xl backdrop-blur"></div>
-
-    <script>
-      const state = {
-        tasks: [],
-        agents: [],
-        agentDetails: {},
-        projects: [],
-        runs: [],
-        approvals: [],
-        approvalsFilter: "pending",
-        expandedTaskId: null,
-        expandedAgentId: null,
-        expandedRunId: null,
-        taskComments: {},
-        taskFeedback: {},
-        expandedProjectId: null,
-        showAllSessions: null,
-        statusFilter: "all",
-        pollHandle: null,
-        runsPollHandle: null,
-      };
-
-      const STATUS_TABS = ["all", "todo", "in_progress", "in_review", "done", "blocked", "failed", "cancelled"];
-      const TASK_STATUS_OPTIONS = ["todo", "in_progress", "in_review", "done", "blocked", "failed", "cancelled"];
-      const ACTIVE_TASK_STATUSES = new Set(["todo", "in_progress", "in_review", "blocked"]);
-      const STATUS_BADGE = {
-        todo: "bg-slate-600 text-slate-100",
-        in_progress: "bg-blue-600 text-blue-100 status-running",
-        in_review: "bg-violet-600 text-violet-100",
-        done: "bg-emerald-600 text-emerald-100",
-        blocked: "bg-amber-500 text-amber-100",
-        failed: "bg-rose-600 text-rose-100",
-        cancelled: "bg-amber-500 text-amber-100",
-      };
-
-      function api(path, options) {
-        return fetch(path, {
-          headers: { "Content-Type": "application/json", ...(options && options.headers ? options.headers : {}) },
-          ...options,
-        }).then(async (res) => {
-          if (!res.ok) {
-            let detail = "Request failed";
-            try {
-              const body = await res.json();
-              detail = body.error || detail;
-            } catch {
-              // ignore
-            }
-            throw new Error(detail);
-          }
-          return res.status === 204 ? null : res.json();
-        });
-      }
-
-      function openView(view) {
-        document.getElementById("tasks-view").classList.toggle("hidden", view !== "tasks");
-        document.getElementById("runs-view").classList.toggle("hidden", view !== "runs");
-        document.getElementById("agents-view").classList.toggle("hidden", view !== "agents");
-        document.getElementById("projects-view").classList.toggle("hidden", view !== "projects");
-        document.getElementById("timeline-view").classList.toggle("hidden", view !== "timeline");
-        document.getElementById("approvals-view").classList.toggle("hidden", view !== "approvals");
-
-        document.querySelectorAll(".view-tab").forEach((el) => {
-          const active = el.dataset.view === view;
-          el.classList.toggle("bg-sky-500", active);
-          el.classList.toggle("text-slate-900", active);
-          el.classList.toggle("text-slate-200", !active);
-        });
-
-        const url = new URL(window.location.href);
-        if (view === "agents") url.pathname = "/agents";
-        else if (view === "runs") url.pathname = "/runs";
-        else if (view === "projects") url.pathname = "/projects";
-        else if (view === "timeline") url.pathname = "/timeline";
-        else if (view === "approvals") url.pathname = "/approvals";
-        else url.pathname = "/";
-        window.history.replaceState({}, "", url);
-
-        if (view === "projects") loadProjects();
-        if (view === "timeline") loadTimeline();
-        if (view === "runs") loadRuns();
-        if (view === "approvals") loadApprovals();
-
-        // Stop runs polling when leaving runs view
-        if (view !== "runs" && state.runsPollHandle) {
-          clearInterval(state.runsPollHandle);
-          state.runsPollHandle = null;
-        }
-      }
-
-      function relativeTime(raw) {
-        if (!raw) return "-";
-        const source = new Date(raw.replace(" ", "T") + "Z");
-        const sec = Math.floor((Date.now() - source.getTime()) / 1000);
-        if (!Number.isFinite(sec)) return raw;
-        if (sec < 60) return `${sec}s ago`;
-        const min = Math.floor(sec / 60);
-        if (min < 60) return `${min}m ago`;
-        const hr = Math.floor(min / 60);
-        if (hr < 24) return `${hr}h ago`;
-        const day = Math.floor(hr / 24);
-        return `${day}d ago`;
-      }
-
-      function formatTime(raw) {
-        if (!raw) return "-";
-        const source = new Date(raw);
-        if (!Number.isFinite(source.getTime())) return raw;
-        return source.toLocaleString();
-      }
-
-      function escapeHtml(value) {
-        const div = document.createElement("div");
-        div.textContent = value || "";
-        return div.innerHTML;
-      }
-
-      function titleCaseStatus(status) {
-        return String(status || "")
-          .split("_")
-          .map((part) => part ? part[0].toUpperCase() + part.slice(1) : part)
-          .join(" ");
-      }
-
-      function buildTaskAgentOptions(selectedAgent) {
-        const options = ['<option value="">Unassigned</option>'];
-        const seen = new Set([""]);
-        for (const agent of state.agents) {
-          seen.add(agent.name);
-          options.push(
-            `<option value="${escapeHtml(agent.name)}" ${agent.name === (selectedAgent || "") ? "selected" : ""}>${escapeHtml(agent.name)} (${escapeHtml(agent.type)})</option>`,
-          );
-        }
-        if (selectedAgent && !seen.has(selectedAgent)) {
-          options.push(`<option value="${escapeHtml(selectedAgent)}" selected>${escapeHtml(selectedAgent)} (current)</option>`);
-        }
-        return options.join("");
-      }
-
-      function setTaskFeedback(taskId, kind, message) {
-        if (!message) {
-          delete state.taskFeedback[taskId];
-          return;
-        }
-        state.taskFeedback[taskId] = { kind, message };
-      }
-
-      async function loadTaskComments(taskId) {
-        try {
-          state.taskComments[taskId] = await api(`/api/tasks/${taskId}/comments`);
-          if (state.expandedTaskId === taskId) {
-            renderTasks();
-          }
-        } catch (error) {
-          state.taskComments[taskId] = [{ id: "error", body: error.message, created_at: null }];
-          if (state.expandedTaskId === taskId) {
-            renderTasks();
-          }
-        }
-      }
-
-      function renderStatusTabs() {
-        const root = document.getElementById("status-tabs");
-        root.innerHTML = "";
-        for (const status of STATUS_TABS) {
-          const btn = document.createElement("button");
-          const active = state.statusFilter === status;
-          btn.className = `rounded-md px-3 py-1.5 text-sm font-medium ${
-            active ? "bg-sky-500 text-slate-900" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-          }`;
-          btn.textContent = status === "all" ? "All" : titleCaseStatus(status);
-          btn.onclick = () => {
-            state.statusFilter = status;
-            state.expandedTaskId = null;
-            renderStatusTabs();
-            loadTasks();
-          };
-          root.appendChild(btn);
-        }
-      }
-
-      function renderTasks() {
-        const tbody = document.getElementById("tasks-table");
-        tbody.innerHTML = "";
-
-        if (state.tasks.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">No tasks found.</td></tr>';
-          return;
-        }
-
-        for (const task of state.tasks) {
-          const tr = document.createElement("tr");
-          tr.className = "cursor-pointer hover:bg-slate-800/70";
-          tr.innerHTML = `
-            <td class="px-4 py-3 font-medium">${escapeHtml(task.title)}</td>
-            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${STATUS_BADGE[task.status] || "bg-slate-700 text-slate-100"}">${escapeHtml(task.status)}</span></td>
-            <td class="px-4 py-3">${escapeHtml(task.agent || "-")}</td>
-            <td class="px-4 py-3">${escapeHtml(task.priority || "-")}</td>
-            <td class="px-4 py-3 text-slate-300">${relativeTime(task.created_at)}</td>
-          `;
-          tr.onclick = () => {
-            state.expandedTaskId = state.expandedTaskId === task.id ? null : task.id;
-            if (state.expandedTaskId === task.id && !state.taskComments[task.id]) {
-              state.taskComments[task.id] = null;
-              void loadTaskComments(task.id);
-            }
-            renderTasks();
-          };
-          tbody.appendChild(tr);
-
-          const commentItems = state.taskComments[task.id];
-          const commentsHtml = commentItems === null
-            ? '<p class="text-sm text-slate-400">Loading updates...</p>'
-            : Array.isArray(commentItems) && commentItems.length > 0
-              ? commentItems.map((comment) => `
-                  <div class="rounded-md border border-slate-700 bg-slate-900/80 p-3">
-                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                      <span>${escapeHtml(comment.status ? titleCaseStatus(comment.status) : "Note")}</span>
-                      <span>${escapeHtml(comment.reviewer ? `Reviewer: ${comment.reviewer}` : "No reviewer")}</span>
-                      <span>${escapeHtml(comment.created_at ? formatTime(comment.created_at) : "-")}</span>
-                    </div>
-                    <p class="mt-2 text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(comment.body || "")}</p>
-                  </div>
-                `).join("")
-              : '<p class="text-sm text-slate-400">No workflow notes yet.</p>';
-
-          const statusOptionsHtml = TASK_STATUS_OPTIONS.map((status) => `
-            <option value="${status}" ${task.status === status ? "selected" : ""}>${titleCaseStatus(status)}</option>
-          `).join("");
-          const agentOptionsHtml = buildTaskAgentOptions(task.agent);
-          const feedback = state.taskFeedback[task.id];
-          const feedbackHtml = feedback
-            ? `<p class="task-feedback rounded-md border px-3 py-2 text-sm ${
-                feedback.kind === "error"
-                  ? "border-rose-800 bg-rose-950/60 text-rose-200"
-                  : feedback.kind === "success"
-                    ? "border-emerald-800 bg-emerald-950/60 text-emerald-200"
-                    : "border-slate-700 bg-slate-950/60 text-slate-300"
-              }">${escapeHtml(feedback.message)}</p>`
-            : "";
-
-          if (state.expandedTaskId === task.id) {
-            const details = document.createElement("tr");
-            details.innerHTML = `
-              <td colspan="5" class="space-y-3 bg-slate-950/90 px-4 py-4">
-                <div>
-                  <p class="text-xs uppercase tracking-wide text-slate-400">Description</p>
-                  <p class="mt-1 text-sm text-slate-200">${escapeHtml(task.description || "No description")}</p>
-                </div>
-                <div class="grid gap-3 lg:grid-cols-2">
-                  <div>
-                    <p class="text-xs uppercase tracking-wide text-slate-400">Stdout</p>
-                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-emerald-200">${escapeHtml(task.stdout || "")}</pre>
-                  </div>
-                  <div>
-                    <p class="text-xs uppercase tracking-wide text-slate-400">Stderr</p>
-                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-rose-200">${escapeHtml(task.stderr || "")}</pre>
-                  </div>
-                </div>
-                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3">
-                  <p><span class="text-slate-400">Reviewer:</span> ${escapeHtml(task.reviewer || "-")}</p>
-                  <p><span class="text-slate-400">Commit:</span> ${escapeHtml(task.commit_hash || "-")}</p>
-                  <p><span class="text-slate-400">Started:</span> ${escapeHtml(task.started_at || "-")}</p>
-                  <p><span class="text-slate-400">Completed:</span> ${escapeHtml(task.completed_at || "-")}</p>
-                </div>
-                <form class="task-update-form grid gap-3 rounded-lg border border-slate-700 bg-slate-900/70 p-4" data-task-id="${task.id}">
-                  <div class="grid gap-3 md:grid-cols-3">
-                    <label class="text-sm text-slate-300">
-                      <span class="text-xs uppercase tracking-wide text-slate-400">Status</span>
-                      <select name="status" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2">${statusOptionsHtml}</select>
-                    </label>
-                    <label class="text-sm text-slate-300">
-                      <span class="text-xs uppercase tracking-wide text-slate-400">Assignee</span>
-                      <select name="agent" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2">${agentOptionsHtml}</select>
-                    </label>
-                    <label class="text-sm text-slate-300">
-                      <span class="text-xs uppercase tracking-wide text-slate-400">Reviewer</span>
-                      <input name="reviewer" value="${escapeHtml(task.reviewer || "")}" placeholder="Optional unless sending to review" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2" />
-                    </label>
-                  </div>
-                  <label class="text-sm text-slate-300">
-                    <span class="text-xs uppercase tracking-wide text-slate-400">Note</span>
-                    <textarea name="comment" rows="3" placeholder="Explain the status change or handoff" class="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2"></textarea>
-                  </label>
-                  <div class="flex flex-wrap gap-2">
-                    <button class="rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-400" type="submit">Save update</button>
-                    <button class="task-reassign-button rounded-md border border-amber-600 px-3 py-2 text-sm text-amber-100 hover:bg-amber-950/40" type="button" data-task-id="${task.id}" data-current-agent="${escapeHtml(task.agent || "")}">Reassign task</button>
-                    <button class="task-note-button rounded-md border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800" type="button" data-task-id="${task.id}">Add note only</button>
-                    ${task.status === "failed" || task.status === "cancelled" ? `<button class="task-retry-button rounded-md border border-emerald-600 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-950/40" type="button" data-task-id="${task.id}">Retry</button>` : ""}
-                  </div>
-                  ${feedbackHtml}
-                </form>
-                <div class="space-y-3">
-                  <p class="text-xs uppercase tracking-wide text-slate-400">Workflow Notes</p>
-                  ${commentsHtml}
-                </div>
-              </td>
-            `;
-            tbody.appendChild(details);
-          }
-        }
-
-        tbody.querySelectorAll(".task-update-form").forEach((form) => {
-          form.onsubmit = async (event) => {
-            event.preventDefault();
-            const taskId = form.dataset.taskId;
-            const formData = new FormData(form);
-            const status = formData.get("status");
-            const agent = formData.get("agent");
-            const reviewer = formData.get("reviewer");
-            const comment = formData.get("comment");
-            try {
-              setTaskFeedback(taskId, "info", "Saving task update...");
-              renderTasks();
-              const body = {
-                status,
-                agent: agent ? String(agent).trim() || null : null,
-                reviewer: reviewer ? String(reviewer).trim() || null : null,
-              };
-              if (comment && String(comment).trim()) {
-                body.comment = String(comment).trim();
-              }
-              await api(`/api/tasks/${taskId}`, {
-                method: "PATCH",
-                body: JSON.stringify(body),
-              });
-              setTaskFeedback(taskId, "success", "Task update saved.");
-              state.taskComments[taskId] = null;
-              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
-            } catch (error) {
-              setTaskFeedback(taskId, "error", error.message);
-              renderTasks();
-            }
-          };
-        });
-
-        tbody.querySelectorAll(".task-reassign-button").forEach((button) => {
-          button.onclick = async () => {
-            const taskId = button.dataset.taskId;
-            const currentAgent = button.dataset.currentAgent || "";
-            const form = button.closest(".task-update-form");
-            const formData = new FormData(form);
-            const nextAgent = String(formData.get("agent") || "").trim();
-            const reviewer = String(formData.get("reviewer") || "").trim();
-            const comment = String(formData.get("comment") || "").trim();
-
-            if (nextAgent === currentAgent) {
-              setTaskFeedback(taskId, "error", "Choose a different assignee or Unassigned before reassigning.");
-              renderTasks();
-              return;
-            }
-
-            try {
-              setTaskFeedback(taskId, "info", nextAgent ? `Reassigning to ${nextAgent}...` : "Removing the current assignee...");
-              renderTasks();
-              const body = {
-                agent: nextAgent || null,
-                reviewer: reviewer || null,
-              };
-              if (comment) {
-                body.comment = comment;
-              }
-              await api(`/api/tasks/${taskId}`, {
-                method: "PATCH",
-                body: JSON.stringify(body),
-              });
-              setTaskFeedback(taskId, "success", nextAgent ? `Task reassigned to ${nextAgent}.` : "Task is now unassigned.");
-              state.taskComments[taskId] = null;
-              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
-            } catch (error) {
-              setTaskFeedback(taskId, "error", error.message);
-              renderTasks();
-            }
-          };
-        });
-
-        tbody.querySelectorAll(".task-note-button").forEach((button) => {
-          button.onclick = async () => {
-            const taskId = button.dataset.taskId;
-            const form = button.closest(".task-update-form");
-            const formData = new FormData(form);
-            const comment = String(formData.get("comment") || "").trim();
-            if (!comment) {
-              alert("Note is required.");
-              return;
-            }
-            try {
-              await api(`/api/tasks/${taskId}/comments`, {
-                method: "POST",
-                body: JSON.stringify({
-                  body: comment,
-                }),
-              });
-              setTaskFeedback(taskId, "success", "Note added.");
-              state.taskComments[taskId] = null;
-              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
-            } catch (error) {
-              setTaskFeedback(taskId, "error", error.message);
-              renderTasks();
-            }
-          };
-        });
-
-        tbody.querySelectorAll(".task-retry-button").forEach((button) => {
-          button.onclick = async () => {
-            const taskId = button.dataset.taskId;
-            try {
-              setTaskFeedback(taskId, "info", "Requeuing task...");
-              renderTasks();
-              await api(`/api/tasks/${taskId}/retry`, { method: "POST" });
-              setTaskFeedback(taskId, "success", "Task requeued for retry.");
-              state.taskComments[taskId] = null;
-              await Promise.all([loadTasks(), loadTaskComments(taskId)]);
-            } catch (error) {
-              setTaskFeedback(taskId, "error", error.message);
-              renderTasks();
-            }
-          };
-        });
-      }
-
-      function formatDuration(startedAt, completedAt) {
-        if (!startedAt) return "-";
-        const startMs = Date.parse(startedAt);
-        if (!Number.isFinite(startMs)) return "-";
-        const endMs = completedAt ? Date.parse(completedAt) : Date.now();
-        if (!Number.isFinite(endMs)) return "-";
-        const sec = Math.max(0, Math.round((endMs - startMs) / 1000));
-        if (sec < 60) return sec + "s";
-        const min = Math.floor(sec / 60);
-        if (min < 60) return min + "m " + (sec % 60) + "s";
-        return Math.floor(min / 60) + "h " + (min % 60) + "m";
-      }
-
-      const RUN_STATUS_BADGE = {
-        running: "bg-blue-600 text-blue-100 status-running",
-        done: "bg-emerald-600 text-emerald-100",
-        failed: "bg-rose-600 text-rose-100",
-      };
-
-      function formatCostCents(cents) {
-        if (!cents || cents === 0) return "-";
-        const dollars = cents / 100;
-        return dollars < 0.01 ? "<$0.01" : `$${dollars.toFixed(2)}`;
-      }
-
-      function configureRunsPolling() {
-        const hasActiveRuns = (state.runs || []).some((r) => r.status === "running");
-        const badge = document.getElementById("runs-live-badge");
-        if (badge) badge.classList.toggle("hidden", !hasActiveRuns);
-        if (!hasActiveRuns && state.runsPollHandle) {
-          clearInterval(state.runsPollHandle);
-          state.runsPollHandle = null;
-        }
-        if (hasActiveRuns && !state.runsPollHandle) {
-          state.runsPollHandle = setInterval(loadRuns, 5000);
-        }
-      }
-
-      async function loadRuns() {
-        try {
-          state.runs = await api("/api/runs?limit=100");
-          renderRuns();
-          configureRunsPolling();
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-
-      function renderRuns() {
-        const tbody = document.getElementById("runs-table");
-        tbody.innerHTML = "";
-        const runs = state.runs || [];
-
-        if (runs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400">No execution runs yet.</td></tr>';
-          return;
-        }
-
-        for (const run of runs) {
-          const tr = document.createElement("tr");
-          const isRunning = run.status === "running";
-          tr.className = `cursor-pointer hover:bg-slate-800/70${isRunning ? " bg-blue-950/20" : ""}`;
-          const badge = RUN_STATUS_BADGE[run.status] || "bg-slate-700 text-slate-100";
-          tr.innerHTML = `
-            <td class="px-4 py-3 font-medium">${escapeHtml(run.task_title || run.task_id)}</td>
-            <td class="px-4 py-3">${escapeHtml(run.agent)}</td>
-            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge}">${escapeHtml(run.status)}</span></td>
-            <td class="px-4 py-3 mono text-xs">${run.exit_code !== null ? run.exit_code : "-"}</td>
-            <td class="px-4 py-3 text-slate-300">${relativeTime(run.started_at)}</td>
-            <td class="px-4 py-3 text-slate-300">${formatDuration(run.started_at, run.completed_at)}</td>
-            <td class="px-4 py-3 text-emerald-300 mono text-xs">${formatCostCents(run.cost_cents)}</td>
-          `;
-          tr.onclick = () => {
-            state.expandedRunId = state.expandedRunId === run.id ? null : run.id;
-            renderRuns();
-          };
-          tbody.appendChild(tr);
-
-          if (state.expandedRunId === run.id) {
-            const details = document.createElement("tr");
-            details.innerHTML = `
-              <td colspan="7" class="space-y-3 bg-slate-950/90 px-4 py-4">
-                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-4">
-                  <p><span class="text-slate-400">Run ID:</span> <span class="mono text-xs">${escapeHtml(run.id)}</span></p>
-                  <p><span class="text-slate-400">Commit:</span> ${escapeHtml(run.commit_hash || "-")}</p>
-                  <p><span class="text-slate-400">Timed Out:</span> ${run.timed_out ? "Yes" : "No"}</p>
-                  <p><span class="text-slate-400">Cost:</span> <span class="text-emerald-300 font-medium">${formatCostCents(run.cost_cents)}</span></p>
-                  <p class="sm:col-span-2"><span class="text-slate-400">Workspace:</span> <span class="mono text-xs">${escapeHtml(run.workspace_dir || "-")}</span></p>
-                </div>
-                <div class="grid gap-3 lg:grid-cols-2">
-                  <div>
-                    <p class="text-xs uppercase tracking-wide text-slate-400">Stdout</p>
-                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-emerald-200">${escapeHtml(run.stdout || "")}</pre>
-                  </div>
-                  <div>
-                    <p class="text-xs uppercase tracking-wide text-slate-400">Stderr</p>
-                    <pre class="mono mt-1 max-h-48 overflow-auto rounded-md border border-slate-700 bg-black/40 p-3 text-xs text-rose-200">${escapeHtml(run.stderr || "")}</pre>
-                  </div>
-                </div>
-              </td>
-            `;
-            tbody.appendChild(details);
-          }
-        }
-      }
-
-      async function loadAgentDetails(agentId) {
-        try {
-          state.agentDetails[agentId] = await api(`/api/agents/${agentId}`);
-          if (state.expandedAgentId === agentId) {
-            renderAgents();
-          }
-        } catch (error) {
-          state.agentDetails[agentId] = { error: error.message };
-          if (state.expandedAgentId === agentId) {
-            renderAgents();
-          }
-        }
-      }
-
-      function renderAgents() {
-        const tbody = document.getElementById("agents-table");
-        tbody.innerHTML = "";
-
-        if (state.agents.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No agents configured.</td></tr>';
-          return;
-        }
-
-        for (const agent of state.agents) {
-          const heartbeatLabel = agent.heartbeat_enabled === 1
-            ? `<span class="inline-flex items-center gap-2"><span class="heartbeat-dot"></span>enabled</span>`
-            : "disabled";
-          const isExpanded = state.expandedAgentId === agent.id;
-          const tr = document.createElement("tr");
-          tr.className = "cursor-pointer hover:bg-slate-800/70";
-          const chevron = `<span class="mr-1 text-xs text-slate-400">${isExpanded ? "&#9660;" : "&#9654;"}</span>`;
-          const nameHtml = agent.avatar_url
-            ? `<div class="flex items-center gap-2">${chevron}<img src="${escapeHtml(agent.avatar_url)}" class="h-8 w-8 rounded-full" /><div><span class="font-medium">${escapeHtml(agent.name)}</span>${agent.role ? `<span class="ml-1.5 text-xs text-slate-400 uppercase">${escapeHtml(agent.role)}</span>` : ''}</div></div>`
-            : `<span class="font-medium">${chevron}${escapeHtml(agent.name)}</span>`;
-          tr.innerHTML = `
-            <td class="px-4 py-3">${nameHtml}</td>
-            <td class="px-4 py-3">${escapeHtml(agent.type)}</td>
-            <td class="px-4 py-3">
-              <p>${heartbeatLabel}</p>
-              <p class="mono text-xs text-slate-400">${escapeHtml(agent.heartbeat_cron || "-")}</p>
-            </td>
-            <td class="px-4 py-3 text-xs text-slate-300">${escapeHtml(formatTime(agent.heartbeat_next_run))}</td>
-            <td class="px-4 py-3">${agent.active === 1 ? "yes" : "no"}</td>
-            <td class="px-4 py-3">
-              <div class="flex gap-2">
-                <button data-id="${agent.id}" data-action="edit" class="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">Edit</button>
-                <button data-id="${agent.id}" data-action="delete" class="rounded border border-rose-700 px-2 py-1 text-xs text-rose-200 hover:bg-rose-900/40">Delete</button>
-              </div>
-            </td>
-          `;
-          tr.onclick = (e) => {
-            if (e.target.closest("button")) return;
-            const expanding = state.expandedAgentId !== agent.id;
-            state.expandedAgentId = expanding ? agent.id : null;
-            if (expanding && !state.agentDetails[agent.id]) {
-              state.agentDetails[agent.id] = null;
-              void loadAgentDetails(agent.id);
-            }
-            renderAgents();
-          };
-          tbody.appendChild(tr);
-
-          if (isExpanded) {
-            const details = state.agentDetails[agent.id];
-            let detailsHtml;
-            if (details === null) {
-              detailsHtml = '<p class="text-sm text-slate-400">Loading details...</p>';
-            } else if (details && details.error) {
-              detailsHtml = `<p class="text-sm text-rose-300">Failed to load details: ${escapeHtml(details.error)}</p>`;
-            } else if (details) {
-              const ISSUE_STATUS_BADGE = {
-                todo: "bg-slate-600 text-slate-100",
-                in_progress: "bg-blue-600 text-blue-100 status-running",
-                in_review: "bg-violet-600 text-violet-100",
-                done: "bg-emerald-600 text-emerald-100",
-                blocked: "bg-amber-500 text-amber-100",
-                failed: "bg-rose-600 text-rose-100",
-                cancelled: "bg-amber-500 text-amber-100",
-              };
-              const issuesHtml = details.assigned_issues && details.assigned_issues.length > 0
-                ? `<table class="min-w-full text-left text-xs mt-2">
-                    <thead class="text-xs uppercase tracking-wide text-slate-400">
-                      <tr>
-                        <th class="px-3 py-2">Title</th>
-                        <th class="px-3 py-2">Status</th>
-                        <th class="px-3 py-2">Priority</th>
-                        <th class="px-3 py-2">Updated</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                      ${details.assigned_issues.map((issue) => `
-                        <tr>
-                          <td class="px-3 py-2 text-slate-200">${escapeHtml(issue.title)}</td>
-                          <td class="px-3 py-2"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ISSUE_STATUS_BADGE[issue.status] || "bg-slate-700 text-slate-100"}">${escapeHtml(issue.status)}</span></td>
-                          <td class="px-3 py-2 text-slate-300">${escapeHtml(issue.priority || "-")}</td>
-                          <td class="px-3 py-2 text-slate-400">${relativeTime(issue.updated_at)}</td>
-                        </tr>
-                      `).join("")}
-                    </tbody>
-                  </table>`
-                : '<p class="text-sm text-slate-400 mt-1">No tasks currently assigned.</p>';
-
-              const soulSection = details.soul_md
-                ? `<div class="mt-3">
-                    <p class="text-xs uppercase tracking-wide text-slate-400 mb-1">Soul Document</p>
-                    <pre class="mono text-xs text-slate-300 whitespace-pre-wrap bg-slate-950/60 rounded-md border border-slate-700 p-3 max-h-48 overflow-auto">${escapeHtml(details.soul_md)}</pre>
-                  </div>`
-                : '';
-
-              const budgetHtml = details.budget_limit_cents
-                ? `<p><span class="text-slate-400">Budget:</span> <span class="text-emerald-300 font-medium">$${(details.budget_limit_cents / 100).toFixed(2)} limit</span></p>`
-                : '';
-
-              detailsHtml = `
-                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3 mb-3">
-                  <p><span class="text-slate-400">ID:</span> <span class="mono text-xs">${escapeHtml(details.id)}</span></p>
-                  <p><span class="text-slate-400">Type:</span> ${escapeHtml(details.type)}</p>
-                  <p><span class="text-slate-400">Command:</span> <span class="mono text-xs">${escapeHtml(details.command_template)}</span></p>
-                  ${details.heartbeat_repo ? `<p><span class="text-slate-400">Repo:</span> <span class="mono text-xs">${escapeHtml(details.heartbeat_repo)}</span></p>` : ''}
-                  <p><span class="text-slate-400">Created:</span> ${relativeTime(details.created_at)}</p>
-                  ${budgetHtml}
-                </div>
-                ${details.description ? `<p class="text-sm text-slate-300 mb-3">${escapeHtml(details.description)}</p>` : ''}
-                <div>
-                  <p class="text-xs uppercase tracking-wide text-slate-400">Assigned Tasks (${(details.assigned_issues || []).length})</p>
-                  ${issuesHtml}
-                </div>
-                ${soulSection}
-              `;
-            } else {
-              detailsHtml = '<p class="text-sm text-slate-400">No details available.</p>';
-            }
-
-            const detailRow = document.createElement("tr");
-            detailRow.innerHTML = `<td colspan="6" class="bg-slate-950/90 px-5 py-4">${detailsHtml}</td>`;
-            tbody.appendChild(detailRow);
-          }
-        }
-
-        tbody.querySelectorAll("button[data-action]").forEach((btn) => {
-          btn.onclick = async (e) => {
-            e.stopPropagation();
-            const id = btn.dataset.id;
-            const action = btn.dataset.action;
-            const agent = state.agents.find((x) => x.id === id);
-            if (!agent) return;
-
-            if (action === "edit") {
-              document.getElementById("agent-id").value = agent.id;
-              document.getElementById("agent-name").value = agent.name;
-              document.getElementById("agent-type").value = agent.type;
-              document.getElementById("agent-command").value = agent.command_template;
-              document.getElementById("agent-active").checked = agent.active === 1;
-              document.getElementById("agent-heartbeat-cron").value = agent.heartbeat_cron || "";
-              document.getElementById("agent-heartbeat-repo").value = agent.heartbeat_repo || "";
-              document.getElementById("agent-heartbeat-prompt").value = agent.heartbeat_prompt || "";
-              document.getElementById("agent-heartbeat-enabled").checked = agent.heartbeat_enabled === 1;
-              document.getElementById("agent-form-title").textContent = "Edit Agent";
-              return;
-            }
-
-            if (!confirm(`Delete agent ${agent.name}?`)) return;
-            try {
-              await api(`/api/agents/${agent.id}`, { method: "DELETE" });
-              await loadAgents();
-            } catch (error) {
-              alert(error.message);
-            }
-          };
-        });
-      }
-
-      const APPROVAL_STATUS_BADGE = {
-        pending: "bg-amber-500 text-amber-100",
-        approved: "bg-emerald-600 text-emerald-100",
-        denied: "bg-rose-600 text-rose-100",
-      };
-
-      const APPROVALS_FILTER_TABS = ["pending", "approved", "denied", "all"];
-
-      function renderApprovalsFilterTabs() {
-        const root = document.getElementById("approvals-filter-tabs");
-        if (!root) return;
-        root.innerHTML = "";
-        for (const f of APPROVALS_FILTER_TABS) {
-          const btn = document.createElement("button");
-          const active = state.approvalsFilter === f;
-          btn.className = `rounded-md px-3 py-1.5 text-sm font-medium ${
-            active ? "bg-sky-500 text-slate-900" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-          }`;
-          btn.textContent = f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1);
-          btn.onclick = () => {
-            state.approvalsFilter = f;
-            renderApprovalsFilterTabs();
-            loadApprovals();
-          };
-          root.appendChild(btn);
-        }
-      }
-
-      async function loadApprovals() {
-        renderApprovalsFilterTabs();
-        const query = state.approvalsFilter === "all" ? "" : `?status=${state.approvalsFilter}`;
-        try {
-          state.approvals = await api(`/api/approvals${query}`);
-          renderApprovals();
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-
-      function renderApprovals() {
-        const tbody = document.getElementById("approvals-table");
-        if (!tbody) return;
-        tbody.innerHTML = "";
-        const approvals = state.approvals || [];
-
-        if (approvals.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No ${state.approvalsFilter === "all" ? "" : state.approvalsFilter + " "}approvals found.</td></tr>`;
-          return;
-        }
-
-        for (const approval of approvals) {
-          const badge = APPROVAL_STATUS_BADGE[approval.status] || "bg-slate-700 text-slate-100";
-          const isPending = approval.status === "pending";
-          const actionsHtml = isPending
-            ? `<div class="flex gap-2">
-                <button class="approval-approve rounded border border-emerald-600 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-900/40" data-id="${escapeHtml(approval.id)}">Approve</button>
-                <button class="approval-deny rounded border border-rose-700 px-2 py-1 text-xs text-rose-200 hover:bg-rose-900/40" data-id="${escapeHtml(approval.id)}">Deny</button>
-              </div>`
-            : `<span class="text-xs text-slate-500">${approval.resolved_by ? escapeHtml(approval.resolved_by) : "—"}</span>`;
-
-          const linkedHtml = approval.task_id
-            ? `<span class="mono text-xs text-slate-400">${escapeHtml(approval.task_id.slice(0, 8))}…</span>`
-            : approval.run_id
-              ? `<span class="mono text-xs text-slate-400">run:${escapeHtml(approval.run_id.slice(0, 8))}…</span>`
-              : "—";
-
-          const tr = document.createElement("tr");
-          tr.className = `${isPending ? "bg-amber-950/10" : ""}`;
-          tr.innerHTML = `
-            <td class="px-4 py-3 max-w-xs">
-              <p class="text-sm text-slate-200 truncate" title="${escapeHtml(approval.reason)}">${escapeHtml(approval.reason)}</p>
-            </td>
-            <td class="px-4 py-3 mono text-xs text-slate-300">${escapeHtml(approval.agent_id.slice(0, 8))}…</td>
-            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge}">${escapeHtml(approval.status)}</span></td>
-            <td class="px-4 py-3">${linkedHtml}</td>
-            <td class="px-4 py-3 text-slate-300 text-xs">${relativeTime(approval.created_at)}</td>
-            <td class="px-4 py-3">${actionsHtml}</td>
-          `;
-          tbody.appendChild(tr);
-        }
-
-        tbody.querySelectorAll(".approval-approve").forEach((btn) => {
-          btn.onclick = async () => {
-            const id = btn.dataset.id;
-            try {
-              btn.disabled = true;
-              await api(`/api/approvals/${id}`, {
-                method: "PATCH",
-                body: JSON.stringify({ status: "approved", resolved_by: "operator" }),
-              });
-              await loadApprovals();
-            } catch (error) {
-              alert(error.message);
-              btn.disabled = false;
-            }
-          };
-        });
-
-        tbody.querySelectorAll(".approval-deny").forEach((btn) => {
-          btn.onclick = async () => {
-            const id = btn.dataset.id;
-            try {
-              btn.disabled = true;
-              await api(`/api/approvals/${id}`, {
-                method: "PATCH",
-                body: JSON.stringify({ status: "denied", resolved_by: "operator" }),
-              });
-              await loadApprovals();
-            } catch (error) {
-              alert(error.message);
-              btn.disabled = false;
-            }
-          };
-        });
-      }
-
-      async function loadTasks() {
-        const query = state.statusFilter === "all" ? "" : `?status=${state.statusFilter}`;
-        try {
-          state.tasks = await api(`/api/tasks${query}`);
-          renderTasks();
-          configurePolling();
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-
-      async function loadAgents() {
-        try {
-          state.agents = await api("/api/agents");
-          renderAgents();
-          renderAgentOptions();
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-
-      function renderAgentOptions() {
-        const select = document.getElementById("task-agent");
-        const existing = select.value;
-        select.innerHTML = '<option value="">Unassigned</option>';
-        for (const agent of state.agents) {
-          const opt = document.createElement("option");
-          opt.value = agent.name;
-          opt.textContent = `${agent.name} (${agent.type})`;
-          select.appendChild(opt);
-        }
-        if (existing) {
-          select.value = existing;
-        }
-      }
-
-      function configurePolling() {
-        const hasActiveTasks = state.tasks.some((task) => ACTIVE_TASK_STATUSES.has(task.status));
-        if (!hasActiveTasks && state.pollHandle) {
-          clearInterval(state.pollHandle);
-          state.pollHandle = null;
-        }
-        if (hasActiveTasks && !state.pollHandle) {
-          state.pollHandle = setInterval(loadTasks, 5000);
-        }
-      }
-
-      function resetAgentForm() {
-        document.getElementById("agent-id").value = "";
-        document.getElementById("agent-name").value = "";
-        document.getElementById("agent-type").value = "";
-        document.getElementById("agent-command").value = "";
-        document.getElementById("agent-active").checked = true;
-        document.getElementById("agent-heartbeat-cron").value = "";
-        document.getElementById("agent-heartbeat-repo").value = "";
-        document.getElementById("agent-heartbeat-prompt").value = "";
-        document.getElementById("agent-heartbeat-enabled").checked = false;
-        document.getElementById("agent-form-title").textContent = "Add Agent";
-      }
-
-      document.getElementById("open-task-modal").onclick = () => document.getElementById("task-modal").showModal();
-      document.getElementById("close-task-modal").onclick = () => document.getElementById("task-modal").close();
-      document.getElementById("reset-agent-form").onclick = resetAgentForm;
-
-      document.getElementById("task-form").onsubmit = async (event) => {
-        event.preventDefault();
-        const body = {
-          title: document.getElementById("task-title").value,
-          description: document.getElementById("task-description").value || null,
-          agent: document.getElementById("task-agent").value || null,
-          repo_url: document.getElementById("task-repo").value || null,
-          priority: document.getElementById("task-priority").value,
-        };
-
-        try {
-          await api("/api/tasks", { method: "POST", body: JSON.stringify(body) });
-          document.getElementById("task-form").reset();
-          document.getElementById("task-modal").close();
-          await loadTasks();
-        } catch (error) {
-          alert(error.message);
-        }
-      };
-
-      document.getElementById("agent-form").onsubmit = async (event) => {
-        event.preventDefault();
-
-        const id = document.getElementById("agent-id").value;
-        const body = {
-          name: document.getElementById("agent-name").value,
-          type: document.getElementById("agent-type").value,
-          command_template: document.getElementById("agent-command").value,
-          active: document.getElementById("agent-active").checked ? 1 : 0,
-          heartbeat_cron: document.getElementById("agent-heartbeat-cron").value || null,
-          heartbeat_repo: document.getElementById("agent-heartbeat-repo").value || null,
-          heartbeat_prompt: document.getElementById("agent-heartbeat-prompt").value || null,
-          heartbeat_enabled: document.getElementById("agent-heartbeat-enabled").checked ? 1 : 0,
-        };
-
-        try {
-          if (id) {
-            await api(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-          } else {
-            await api("/api/agents", { method: "POST", body: JSON.stringify(body) });
-          }
-          resetAgentForm();
-          await loadAgents();
-        } catch (error) {
-          alert(error.message);
-        }
-      };
-
-      const SOURCE_BADGE = {
-        claude_code: "bg-blue-600 text-blue-100",
-        manual: "bg-slate-600 text-slate-100",
-      };
-      const SOURCE_LABEL = {
-        claude_code: "Claude Code",
-        manual: "Manual",
-      };
-
-      function renderProjects() {
-        const tbody = document.getElementById("projects-table");
-        tbody.innerHTML = "";
-
-        if (state.projects.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No projects yet. Click Scan Machine to import from Claude Code.</td></tr>';
-          return;
-        }
-
-        for (const project of state.projects) {
-          const tr = document.createElement("tr");
-          const badge = SOURCE_BADGE[project.source] || SOURCE_BADGE.manual;
-          const label = SOURCE_LABEL[project.source] || project.source;
-          const isClaudeCode = project.source === "claude_code";
-          tr.className = isClaudeCode ? "cursor-pointer hover:bg-slate-800/70" : "";
-          const usageCell = isClaudeCode
-            ? `<td class="px-4 py-3 text-slate-300 text-xs" id="usage-cell-${project.id}">...</td>`
-            : `<td class="px-4 py-3 text-slate-400 text-xs">-</td>`;
-          tr.innerHTML = `
-            <td class="px-4 py-3 font-medium">${isClaudeCode ? '<span class="text-xs text-slate-400 mr-1">' + (state.expandedProjectId === project.id ? '&#9660;' : '&#9654;') + '</span>' : ''}${escapeHtml(project.name)}</td>
-            <td class="px-4 py-3 mono text-xs text-slate-300">${escapeHtml(project.path)}</td>
-            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge}">${label}</span></td>
-            ${usageCell}
-            <td class="px-4 py-3 text-slate-300">${relativeTime(project.created_at)}</td>
-            <td class="px-4 py-3">
-              <button data-id="${project.id}" class="project-delete rounded border border-rose-700 px-2 py-1 text-xs text-rose-200 hover:bg-rose-900/40">Delete</button>
-            </td>
-          `;
-          if (isClaudeCode) {
-            tr.onclick = (e) => {
-              if (e.target.closest(".project-delete")) return;
-              const expanding = state.expandedProjectId !== project.id;
-              state.expandedProjectId = expanding ? project.id : null;
-              renderProjects();
-              if (expanding) {
-                loadProjectSessions(project.id);
-                loadProjectUsage(project.id);
-                loadProjectTools(project.id);
-                loadProjectFiles(project.id);
-              }
-            };
-          }
-          tbody.appendChild(tr);
-
-          if (state.expandedProjectId === project.id && isClaudeCode) {
-            const detailRow = document.createElement("tr");
-            detailRow.innerHTML = `
-              <td colspan="6" class="bg-slate-950/90 px-4 py-4">
-                <div id="usage-detail-${project.id}" class="mb-3 text-sm text-slate-400">Loading usage...</div>
-                <div id="tools-detail-${project.id}" class="mb-3 text-sm text-slate-400">Loading tools...</div>
-                <div id="files-detail-${project.id}" class="mb-3 text-sm text-slate-400">Loading hot files...</div>
-                <div id="sessions-${project.id}" class="text-sm text-slate-400">Loading sessions...</div>
-              </td>
-            `;
-            tbody.appendChild(detailRow);
-          }
-        }
-
-        for (const project of state.projects) {
-          if (project.source === "claude_code") {
-            loadProjectUsageCell(project.id);
-          }
-        }
-
-        tbody.querySelectorAll(".project-delete").forEach((btn) => {
-          btn.onclick = async (e) => {
-            e.stopPropagation();
-            const id = btn.dataset.id;
-            const project = state.projects.find((p) => p.id === id);
-            if (!project || !confirm(`Delete project ${project.name}?`)) return;
-            try {
-              await api(`/api/projects/${id}`, { method: "DELETE" });
-              await loadProjects();
-            } catch (error) {
-              alert(error.message);
-            }
-          };
-        });
-      }
-
-      async function loadProjectSessions(projectId) {
-        const container = document.getElementById(`sessions-${projectId}`);
-        if (!container) return;
-        try {
-          const sessions = await api(`/api/projects/${projectId}/sessions`);
-          if (sessions.length === 0) {
-            container.innerHTML = '<p class="text-slate-400">No Claude Code sessions found for this project.</p>';
-            return;
-          }
-          const showAll = state.showAllSessions === projectId;
-          const visible = showAll ? sessions : sessions.slice(0, 5);
-          let html = `
-            <table class="min-w-full text-left text-sm">
-              <thead class="text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th class="px-3 py-2">Last Active</th>
-                  <th class="px-3 py-2">Messages</th>
-                  <th class="px-3 py-2">First Message</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-800">
-          `;
-          for (const s of visible) {
-            html += `
-              <tr>
-                <td class="px-3 py-2 text-slate-300">${relativeTime(s.lastActiveAt)}</td>
-                <td class="px-3 py-2 text-slate-300">${s.messageCount}</td>
-                <td class="px-3 py-2 text-slate-300 truncate max-w-md">${escapeHtml(s.firstMessage || '-')}</td>
-              </tr>
-            `;
-          }
-          html += '</tbody></table>';
-          if (!showAll && sessions.length > 5) {
-            html += `<button id="show-more-sessions-${projectId}" class="mt-2 text-xs text-sky-400 hover:text-sky-300">Show ${sessions.length - 5} more sessions</button>`;
-          }
-          container.innerHTML = html;
-          const showMoreBtn = document.getElementById(`show-more-sessions-${projectId}`);
-          if (showMoreBtn) {
-            showMoreBtn.onclick = (e) => {
-              e.stopPropagation();
-              state.showAllSessions = projectId;
-              loadProjectSessions(projectId);
-            };
-          }
-        } catch (error) {
-          container.innerHTML = `<p class="text-rose-300">Failed to load sessions: ${escapeHtml(error.message)}</p>`;
-        }
-      }
-
-      async function loadProjectUsageCell(projectId) {
-        const cell = document.getElementById(`usage-cell-${projectId}`);
-        if (!cell) return;
-        try {
-          const usage = await api(`/api/projects/${projectId}/usage`);
-          if (usage.estimatedCostUsd === 0 && usage.sessionCount === 0) {
-            cell.textContent = 'No usage data';
-          } else {
-            cell.innerHTML = `<span class="text-emerald-300 font-medium">~$${usage.estimatedCostUsd.toFixed(2)}</span>`;
-          }
-        } catch {
-          cell.textContent = '-';
-        }
-      }
-
-      function formatTokenCount(n) {
-        if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-        if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-        return String(n);
-      }
-
-      async function loadProjectUsage(projectId) {
-        const detailContainer = document.getElementById(`usage-detail-${projectId}`);
-        const cellContainer = document.getElementById(`usage-cell-${projectId}`);
-        try {
-          const usage = await api(`/api/projects/${projectId}/usage`);
-          if (usage.estimatedCostUsd === 0 && usage.sessionCount === 0) {
-            if (detailContainer) detailContainer.innerHTML = '<p class="text-slate-400">No usage data</p>';
-            if (cellContainer) cellContainer.textContent = 'No usage data';
-            return;
-          }
-          const cost = `~$${usage.estimatedCostUsd.toFixed(2)}`;
-          if (cellContainer) {
-            cellContainer.innerHTML = `<span class="text-emerald-300 font-medium">${cost}</span>`;
-          }
-          if (detailContainer) {
-            detailContainer.innerHTML = `
-              <div class="flex flex-wrap gap-4 items-center">
-                <span class="text-emerald-300 font-semibold text-base">${cost} estimated cost</span>
-                <span class="text-slate-400">${formatTokenCount(usage.totalInputTokens)} input</span>
-                <span class="text-slate-400">${formatTokenCount(usage.totalOutputTokens)} output</span>
-                <span class="text-slate-400">${formatTokenCount(usage.totalCacheCreationTokens + usage.totalCacheReadTokens)} cache</span>
-                <span class="text-slate-500">${usage.sessionCount} sessions with usage</span>
-              </div>
-            `;
-          }
-        } catch (error) {
-          if (detailContainer) detailContainer.innerHTML = `<p class="text-rose-300">Failed to load usage</p>`;
-          if (cellContainer) cellContainer.textContent = '-';
-        }
-      }
-
-      async function loadProjectTools(projectId) {
-        const container = document.getElementById(`tools-detail-${projectId}`);
-        if (!container) return;
-        try {
-          const data = await api(`/api/projects/${projectId}/tools`);
-          if (data.total === 0) {
-            container.innerHTML = '<p class="text-slate-400">No tool usage data</p>';
-            return;
-          }
-          const top5 = data.breakdown.slice(0, 5);
-          const maxCount = top5[0].count;
-          let html = '<p class="text-xs uppercase tracking-wide text-slate-400 mb-2">Top Tools</p>';
-          html += '<div class="space-y-1.5 max-w-lg">';
-          for (const t of top5) {
-            const pct = maxCount > 0 ? Math.round((t.count / maxCount) * 100) : 0;
-            html += `
-              <div class="flex items-center gap-2 text-xs">
-                <span class="w-16 text-right text-slate-300 mono shrink-0">${escapeHtml(t.tool)}</span>
-                <div class="flex-1 h-4 bg-slate-800 rounded overflow-hidden">
-                  <div class="h-full bg-sky-500/70 rounded" style="width:${pct}%"></div>
-                </div>
-                <span class="w-20 text-slate-400 shrink-0">${t.count} (${t.percentage}%)</span>
-              </div>
-            `;
-          }
-          html += '</div>';
-          if (data.breakdown.length > 5) {
-            html += `<p class="mt-1 text-xs text-slate-500">and ${data.breakdown.length - 5} more tools (${data.total} total calls)</p>`;
-          }
-          container.innerHTML = html;
-        } catch (error) {
-          container.innerHTML = `<p class="text-rose-300">Failed to load tools</p>`;
-        }
-      }
-
-      async function loadProjectFiles(projectId) {
-        const container = document.getElementById(`files-detail-${projectId}`);
-        if (!container) return;
-        try {
-          const data = await api(`/api/projects/${projectId}/files`);
-          if (data.total === 0) {
-            container.innerHTML = '<p class="text-slate-400">No file access data</p>';
-            return;
-          }
-          let html = '<p class="text-xs uppercase tracking-wide text-slate-400 mb-2">Hot Files</p>';
-          html += '<div class="space-y-1 max-w-lg">';
-          for (let i = 0; i < data.topFiles.length; i++) {
-            const f = data.topFiles[i];
-            html += `
-              <div class="flex items-center gap-2 text-xs">
-                <span class="w-5 text-right text-slate-500 shrink-0">${i + 1}.</span>
-                <span class="mono text-slate-300 truncate">${escapeHtml(f.shortPath)}</span>
-                <span class="ml-auto shrink-0 rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">${f.count}</span>
-              </div>
-            `;
-          }
-          html += '</div>';
-          if (data.total > 0 && data.topFiles.length < data.total) {
-            html += `<p class="mt-1 text-xs text-slate-500">${data.total} total file operations across all files</p>`;
-          }
-          container.innerHTML = html;
-        } catch (error) {
-          container.innerHTML = `<p class="text-rose-300">Failed to load files</p>`;
-        }
-      }
-
-      async function loadProjects() {
-        try {
-          state.projects = await api("/api/projects");
-          renderProjects();
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-
-      document.getElementById("scan-projects").onclick = async () => {
-        const btn = document.getElementById("scan-projects");
-        btn.disabled = true;
-        btn.textContent = "Scanning...";
-        try {
-          const result = await api("/api/projects/scan", { method: "POST" });
-          const toast = document.getElementById("scan-toast");
-          toast.textContent = `Found ${result.total} projects (${result.inserted} new)`;
-          toast.classList.remove("hidden");
-          setTimeout(() => toast.classList.add("hidden"), 5000);
-          state.projects = result.projects;
-          renderProjects();
-        } catch (error) {
-          alert(error.message);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "Scan Machine";
-        }
-      };
-
-      document.getElementById("open-project-form").onclick = () => {
-        document.getElementById("project-form-panel").classList.remove("hidden");
-      };
-      document.getElementById("cancel-project-form").onclick = () => {
-        document.getElementById("project-form-panel").classList.add("hidden");
-        document.getElementById("project-form").reset();
-      };
-
-      document.getElementById("project-form").onsubmit = async (event) => {
-        event.preventDefault();
-        const body = {
-          name: document.getElementById("project-name").value,
-          path: document.getElementById("project-path").value,
-          description: document.getElementById("project-description").value || null,
-        };
-        try {
-          await api("/api/projects", { method: "POST", body: JSON.stringify(body) });
-          document.getElementById("project-form").reset();
-          document.getElementById("project-form-panel").classList.add("hidden");
-          await loadProjects();
-        } catch (error) {
-          alert(error.message);
-        }
-      };
-
-      document.querySelectorAll(".view-tab").forEach((el) => {
-        el.onclick = () => openView(el.dataset.view);
-      });
-
-      setInterval(() => {
-        if (!document.getElementById("tasks-view").classList.contains("hidden")) {
-          renderTasks();
-        }
-      }, 30000);
-
-      let timelineDaysLoaded = 30;
-
-      const HEATMAP_COLORS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
-
-      async function loadHeatmap() {
-        const container = document.getElementById("heatmap-container");
-        try {
-          const data = await api("/api/heatmap?days=90");
-          if (data.days.length === 0) {
-            container.innerHTML = '<div class="text-sm text-slate-400">No activity data</div>';
-            return;
-          }
-
-          // Build grid: 7 rows (Sun-Sat) x N columns (weeks)
-          // Pad the start so column 0 begins on Sunday
-          const firstDate = new Date(data.days[0].date + "T00:00:00");
-          const startDow = firstDate.getDay(); // 0=Sun
-          const padded = [];
-          for (let i = 0; i < startDow; i++) padded.push(null);
-          for (const d of data.days) padded.push(d);
-
-          const weeks = Math.ceil(padded.length / 7);
-          const dayLabels = ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'];
-
-          let html = '<div style="overflow-x:auto">';
-          html += '<div style="display:inline-flex;gap:2px;align-items:flex-start">';
-
-          // Day labels column
-          html += '<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">';
-          for (let row = 0; row < 7; row++) {
-            html += `<div style="width:24px;height:10px;line-height:10px;font-size:9px;color:#94a3b8;text-align:right">${dayLabels[row]}</div>`;
-          }
-          html += '</div>';
-
-          // Week columns
-          for (let col = 0; col < weeks; col++) {
-            html += '<div style="display:flex;flex-direction:column;gap:2px">';
-            for (let row = 0; row < 7; row++) {
-              const idx = col * 7 + row;
-              const day = idx < padded.length ? padded[idx] : null;
-              if (day) {
-                const color = HEATMAP_COLORS[day.intensity];
-                const label = formatDateHeader(day.date) + ': ' + day.count + ' session' + (day.count !== 1 ? 's' : '');
-                html += `<div title="${escapeHtml(label)}" style="width:10px;height:10px;background:${color};border-radius:2px"></div>`;
-              } else {
-                html += '<div style="width:10px;height:10px"></div>';
-              }
-            }
-            html += '</div>';
-          }
-
-          html += '</div></div>';
-          html += `<p class="mt-3 text-xs text-slate-400">${data.totalSessions} session${data.totalSessions !== 1 ? 's' : ''} in the last 90 days &middot; ${data.activeDays} active day${data.activeDays !== 1 ? 's' : ''}</p>`;
-          container.innerHTML = html;
-        } catch (error) {
-          container.innerHTML = `<div class="text-sm text-rose-300">Failed to load heatmap: ${escapeHtml(error.message)}</div>`;
-        }
-      }
-
-      function formatDateHeader(dateStr) {
-        const d = new Date(dateStr + "T00:00:00");
-        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      }
-
-      async function loadTimeline(days) {
-        if (days) timelineDaysLoaded = days;
-        loadHeatmap();
-        const container = document.getElementById("timeline-content");
-        try {
-          const timeline = await api(`/api/timeline?days=${timelineDaysLoaded}`);
-          if (timeline.length === 0) {
-            container.innerHTML = '<div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-6 text-center text-slate-400">No activity found in ~/.claude/history.jsonl</div>';
-            return;
-          }
-          let html = '';
-          for (const day of timeline) {
-            html += `<div class="rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl overflow-hidden">`;
-            html += `<div class="bg-slate-800/90 px-4 py-3 flex items-center justify-between">`;
-            html += `<span class="font-semibold text-sm">${escapeHtml(formatDateHeader(day.date))}</span>`;
-            html += `<span class="text-xs text-slate-400">${day.totalSessions} session${day.totalSessions !== 1 ? 's' : ''}</span>`;
-            html += `</div>`;
-            html += `<div class="divide-y divide-slate-800">`;
-            for (const p of day.projects) {
-              const preview = p.firstMessage ? escapeHtml(p.firstMessage.slice(0, 100)) : '';
-              html += `<div class="px-4 py-3 flex items-start gap-3">`;
-              html += `<span class="mt-1.5 block h-2 w-2 shrink-0 rounded-full bg-sky-400"></span>`;
-              html += `<div class="min-w-0">`;
-              html += `<span class="font-medium text-sm">${escapeHtml(p.projectName)}</span>`;
-              html += `<span class="ml-2 text-xs text-slate-400">(${p.sessionCount} session${p.sessionCount !== 1 ? 's' : ''})</span>`;
-              if (preview) {
-                html += `<p class="mt-0.5 text-xs text-slate-400 truncate">${preview}</p>`;
-              }
-              html += `</div>`;
-              html += `</div>`;
-            }
-            html += `</div></div>`;
-          }
-          if (timelineDaysLoaded < 90) {
-            html += `<div class="text-center"><button id="timeline-load-more" class="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Load more</button></div>`;
-          }
-          container.innerHTML = html;
-          const loadMoreBtn = document.getElementById("timeline-load-more");
-          if (loadMoreBtn) {
-            loadMoreBtn.onclick = () => loadTimeline(90);
-          }
-        } catch (error) {
-          container.innerHTML = `<div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-6 text-center text-rose-300">Failed to load timeline: ${escapeHtml(error.message)}</div>`;
-        }
-      }
-
-      // --- Hire Agent flow ---
-      document.getElementById("open-hire-modal").onclick = async () => {
-        const modal = document.getElementById("hire-modal");
-        const content = document.getElementById("hire-modal-content");
-        document.getElementById("hire-modal-title").textContent = "Hire Agent";
-        content.innerHTML = `
-          <div class="flex items-center justify-center py-12">
-            <div class="text-center">
-              <div class="inline-block h-8 w-8 animate-spin rounded-full border-2 border-slate-400 border-t-emerald-400 mb-3"></div>
-              <p class="text-sm text-slate-300">Asking Claude to suggest candidates...</p>
-            </div>
-          </div>`;
-        modal.showModal();
-
-        try {
-          const data = await api("/api/agents/generate-personas", { method: "POST" });
-          renderPersonaCards(data.personas);
-        } catch (error) {
-          content.innerHTML = `
-            <div class="rounded-md border border-rose-700 bg-rose-900/30 p-4 text-sm text-rose-200">
-              Failed to generate personas: ${escapeHtml(error.message)}
-            </div>`;
-        }
-      };
-
-      document.getElementById("close-hire-modal").onclick = () => {
-        document.getElementById("hire-modal").close();
-      };
-
-      function renderPersonaCards(personas) {
-        const content = document.getElementById("hire-modal-content");
-        let html = '<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">';
-        for (const p of personas) {
-          html += `
-            <div class="rounded-lg border border-slate-700 bg-slate-800/60 p-4 flex flex-col items-center text-center hover:border-emerald-600 transition-colors">
-              <img src="${escapeHtml(p.avatarUrl)}" alt="${escapeHtml(p.name)}" class="h-20 w-20 rounded-full mb-3" />
-              <p class="font-semibold text-sm">${escapeHtml(p.name)}</p>
-              <p class="mt-1 text-xs text-slate-400 line-clamp-3" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(p.description)}</p>
-              <button class="hire-choose mt-3 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" data-name="${escapeHtml(p.name)}" data-avatar="${escapeHtml(p.avatarUrl)}" data-desc="${escapeHtml(p.description)}">Choose</button>
-            </div>`;
-        }
-        html += '</div>';
-        content.innerHTML = html;
-
-        content.querySelectorAll(".hire-choose").forEach((btn) => {
-          btn.onclick = () => hireAgent(btn.dataset.name, btn.dataset.avatar, btn.dataset.desc);
-        });
-      }
-
-      async function hireAgent(name, avatarUrl, description) {
-        const content = document.getElementById("hire-modal-content");
-        content.innerHTML = `
-          <div class="flex items-center justify-center py-12">
-            <div class="text-center">
-              <div class="inline-block h-8 w-8 animate-spin rounded-full border-2 border-slate-400 border-t-emerald-400 mb-3"></div>
-              <p class="text-sm text-slate-300">Generating ${escapeHtml(name)}'s soul document...</p>
-            </div>
-          </div>`;
-
-        try {
-          await api("/api/agents/hire", {
-            method: "POST",
-            body: JSON.stringify({ name, avatarUrl, description, role: "ceo" }),
-          });
-          document.getElementById("hire-modal").close();
-          await loadAgents();
-          showHireToast(`Welcome, ${name}!`);
-        } catch (error) {
-          content.innerHTML = `
-            <div class="rounded-md border border-rose-700 bg-rose-900/30 p-4 text-sm text-rose-200">
-              Failed to hire agent: ${escapeHtml(error.message)}
-            </div>`;
-        }
-      }
-
-      function showHireToast(message) {
-        const toast = document.getElementById("hire-toast");
-        toast.textContent = message;
-        toast.classList.remove("hidden");
-        setTimeout(() => toast.classList.add("hidden"), 4000);
-      }
-
-      (async function init() {
-        renderStatusTabs();
-        const path = window.location.pathname;
-        openView(
-          path === "/agents" ? "agents"
-          : path === "/runs" ? "runs"
-          : path === "/projects" ? "projects"
-          : path === "/timeline" ? "timeline"
-          : path === "/approvals" ? "approvals"
-          : "tasks"
-        );
-        await loadAgents();
-        await loadTasks();
-      })();
-    </script>
+    <div id="global-toast-stack" aria-live="polite" aria-atomic="true" class="pointer-events-none fixed right-6 top-6 z-50 flex max-w-sm flex-col gap-2"></div>
+    <script type="module" src="/app/main.js"></script>
   </body>
 </html>

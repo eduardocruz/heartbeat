@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HeartBeat — Style Guide</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body class="min-h-screen text-slate-100">
+    <div class="mx-auto max-w-5xl px-6 py-10 space-y-16">
+
+      <!-- Header -->
+      <header>
+        <div class="flex items-center justify-between mb-1">
+          <h1 class="text-3xl font-semibold tracking-tight">HeartBeat Design System</h1>
+          <a href="/" class="btn btn-secondary btn-sm">← App</a>
+        </div>
+        <p class="text-slate-400">Living reference for tokens, components, and usage patterns.</p>
+      </header>
+
+      <!-- Design Tokens -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Design Tokens</h2>
+
+        <!-- Color Palette -->
+        <div class="space-y-8">
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Surfaces</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-surface-base)"></div>
+                <p class="text-xs text-slate-400">surface-base</p>
+                <p class="text-2xs mono text-slate-500">--color-hb-surface-base</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-surface-raised)"></div>
+                <p class="text-xs text-slate-400">surface-raised</p>
+                <p class="text-2xs mono text-slate-500">--color-hb-surface-raised</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-surface-overlay)"></div>
+                <p class="text-xs text-slate-400">surface-overlay</p>
+                <p class="text-2xs mono text-slate-500">--color-hb-surface-overlay</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-surface-muted)"></div>
+                <p class="text-xs text-slate-400">surface-muted</p>
+                <p class="text-2xs mono text-slate-500">--color-hb-surface-muted</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Status Colors</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-primary)"></div>
+                <p class="text-xs text-slate-400">primary</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-success)"></div>
+                <p class="text-xs text-slate-400">success</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-danger)"></div>
+                <p class="text-xs text-slate-400">danger</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-warning)"></div>
+                <p class="text-xs text-slate-400">warning</p>
+              </div>
+              <div class="space-y-1.5">
+                <div class="h-12 rounded-lg" style="background: var(--color-hb-info)"></div>
+                <p class="text-xs text-slate-400">info</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Typography</h3>
+            <div class="space-y-2">
+              <p class="text-3xl font-semibold">3xl — Page headings</p>
+              <p class="text-2xl font-semibold">2xl — Section headings</p>
+              <p class="text-xl font-semibold">xl — Subsection headings</p>
+              <p class="text-lg font-medium">lg — Card titles</p>
+              <p class="text-base">base — Body copy (16px)</p>
+              <p class="text-sm text-slate-300">sm — Secondary text, labels (14px)</p>
+              <p class="text-xs text-slate-400 uppercase tracking-wide">xs — Table headers, captions (12px)</p>
+              <p class="mono text-sm text-slate-300">mono — Paths, IDs, code (ui-monospace)</p>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Spacing Scale (8px grid)</h3>
+            <div class="flex items-end gap-2">
+              <div class="space-y-1 text-center">
+                <div class="w-1 bg-sky-500 rounded" style="height: var(--spacing-1)"></div>
+                <p class="text-2xs text-slate-500">1</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-2 bg-sky-500 rounded" style="height: var(--spacing-2)"></div>
+                <p class="text-2xs text-slate-500">2</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-3 bg-sky-500 rounded" style="height: var(--spacing-3)"></div>
+                <p class="text-2xs text-slate-500">3</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-4 bg-sky-500 rounded" style="height: var(--spacing-4)"></div>
+                <p class="text-2xs text-slate-500">4</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-5 bg-sky-500 rounded" style="height: var(--spacing-6)"></div>
+                <p class="text-2xs text-slate-500">6</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-6 bg-sky-500 rounded" style="height: var(--spacing-8)"></div>
+                <p class="text-2xs text-slate-500">8</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-7 bg-sky-500 rounded" style="height: var(--spacing-10)"></div>
+                <p class="text-2xs text-slate-500">10</p>
+              </div>
+              <div class="space-y-1 text-center">
+                <div class="w-8 bg-sky-500 rounded" style="height: var(--spacing-12)"></div>
+                <p class="text-2xs text-slate-500">12</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Border Radii</h3>
+            <div class="flex flex-wrap gap-4">
+              <div class="text-center space-y-2">
+                <div class="h-10 w-16 bg-slate-700" style="border-radius: var(--radius-sm)"></div>
+                <p class="text-xs text-slate-400">sm (4px)</p>
+              </div>
+              <div class="text-center space-y-2">
+                <div class="h-10 w-16 bg-slate-700" style="border-radius: var(--radius-md)"></div>
+                <p class="text-xs text-slate-400">md (6px)</p>
+              </div>
+              <div class="text-center space-y-2">
+                <div class="h-10 w-16 bg-slate-700" style="border-radius: var(--radius-lg)"></div>
+                <p class="text-xs text-slate-400">lg (8px)</p>
+              </div>
+              <div class="text-center space-y-2">
+                <div class="h-10 w-16 bg-slate-700" style="border-radius: var(--radius-xl)"></div>
+                <p class="text-xs text-slate-400">xl (12px)</p>
+              </div>
+              <div class="text-center space-y-2">
+                <div class="h-10 w-16 bg-slate-700" style="border-radius: var(--radius-2xl)"></div>
+                <p class="text-xs text-slate-400">2xl (16px)</p>
+              </div>
+              <div class="text-center space-y-2">
+                <div class="h-10 w-16 bg-slate-700" style="border-radius: var(--radius-full)"></div>
+                <p class="text-xs text-slate-400">full (pill)</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-4">Shadows</h3>
+            <div class="flex flex-wrap gap-8">
+              <div class="h-16 w-32 rounded-xl bg-slate-800 flex items-center justify-center" style="box-shadow: var(--shadow-sm)">
+                <span class="text-xs text-slate-400">sm</span>
+              </div>
+              <div class="h-16 w-32 rounded-xl bg-slate-800 flex items-center justify-center" style="box-shadow: var(--shadow-md)">
+                <span class="text-xs text-slate-400">md</span>
+              </div>
+              <div class="h-16 w-32 rounded-xl bg-slate-800 flex items-center justify-center" style="box-shadow: var(--shadow-lg)">
+                <span class="text-xs text-slate-400">lg</span>
+              </div>
+              <div class="h-16 w-32 rounded-xl bg-slate-800 flex items-center justify-center" style="box-shadow: var(--shadow-xl)">
+                <span class="text-xs text-slate-400">xl</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Buttons -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Buttons</h2>
+
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-3">Variants</h3>
+            <div class="flex flex-wrap items-center gap-3">
+              <button class="btn btn-primary">Primary</button>
+              <button class="btn btn-secondary">Secondary</button>
+              <button class="btn btn-success">Success</button>
+              <button class="btn btn-danger">Danger</button>
+              <button class="btn btn-ghost">Ghost</button>
+              <button class="btn btn-primary" disabled>Disabled</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-3">Sizes</h3>
+            <div class="flex flex-wrap items-center gap-3">
+              <button class="btn btn-primary btn-xs">XSmall</button>
+              <button class="btn btn-primary btn-sm">Small</button>
+              <button class="btn btn-primary">Default</button>
+              <button class="btn btn-primary btn-lg">Large</button>
+            </div>
+          </div>
+          <div class="card card-body">
+            <p class="text-xs mono text-slate-400 mb-1">Usage</p>
+            <pre class="text-sm text-slate-300 overflow-x-auto">&lt;button class="btn btn-primary"&gt;Save&lt;/button&gt;
+&lt;button class="btn btn-secondary"&gt;Cancel&lt;/button&gt;
+&lt;button class="btn btn-danger btn-sm"&gt;Delete&lt;/button&gt;</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Badges -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Badges</h2>
+
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-3">Task Status</h3>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-todo">todo</span>
+              <span class="badge badge-running">in_progress</span>
+              <span class="badge badge-review">in_review</span>
+              <span class="badge badge-done">done</span>
+              <span class="badge badge-blocked">blocked</span>
+              <span class="badge badge-failed">failed</span>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold uppercase tracking-widest text-slate-400 mb-3">Priority</h3>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-critical">critical</span>
+              <span class="badge badge-high">high</span>
+              <span class="badge badge-medium">medium</span>
+              <span class="badge badge-low">low</span>
+            </div>
+          </div>
+          <div class="card card-body">
+            <p class="text-xs mono text-slate-400 mb-1">Usage</p>
+            <pre class="text-sm text-slate-300 overflow-x-auto">&lt;span class="badge badge-running"&gt;in_progress&lt;/span&gt;
+&lt;span class="badge badge-done"&gt;done&lt;/span&gt;
+&lt;span class="badge badge-critical"&gt;critical&lt;/span&gt;</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Inputs -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Inputs &amp; Form Controls</h2>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="space-y-3">
+            <label class="form-label">Text input
+              <input class="input mt-1" placeholder="placeholder text…" />
+            </label>
+            <label class="form-label">Textarea
+              <textarea class="input textarea mt-1" rows="3" placeholder="Multi-line input…"></textarea>
+            </label>
+            <label class="form-label">Select
+              <select class="input select mt-1">
+                <option>Option A</option>
+                <option>Option B</option>
+                <option>Option C</option>
+              </select>
+            </label>
+            <label class="form-label">Disabled
+              <input class="input mt-1" disabled value="Disabled input" />
+            </label>
+          </div>
+          <div class="card card-body">
+            <p class="text-xs mono text-slate-400 mb-1">Usage</p>
+            <pre class="text-sm text-slate-300 overflow-x-auto">&lt;label class="form-label"&gt;Name
+  &lt;input class="input mt-1" /&gt;
+&lt;/label&gt;
+
+&lt;textarea class="input textarea mt-1"&gt;&lt;/textarea&gt;
+
+&lt;select class="input select mt-1"&gt;
+  &lt;option&gt;…&lt;/option&gt;
+&lt;/select&gt;</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cards -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Cards</h2>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="card card-body">
+            <h3 class="font-semibold mb-1">Basic card</h3>
+            <p class="text-sm text-slate-400">Use <code class="mono">.card .card-body</code> for most panels.</p>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3 class="font-semibold">Card with header</h3>
+            </div>
+            <div class="card-body">
+              <p class="text-sm text-slate-400">Use <code class="mono">.card-header</code> for titled panels.</p>
+            </div>
+          </div>
+          <div class="card card-body">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold">With actions</h3>
+              <button class="btn btn-primary btn-xs">Action</button>
+            </div>
+            <p class="text-sm text-slate-400">Cards can contain any content.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tables -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Tables</h2>
+
+        <div class="card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Agent</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Design system foundation</td>
+                  <td class="mono text-slate-400">frontend-engineer</td>
+                  <td><span class="badge badge-running">in_progress</span></td>
+                  <td><span class="badge badge-critical">critical</span></td>
+                </tr>
+                <tr>
+                  <td>Write unit tests</td>
+                  <td class="mono text-slate-400">backend-engineer</td>
+                  <td><span class="badge badge-todo">todo</span></td>
+                  <td><span class="badge badge-high">high</span></td>
+                </tr>
+                <tr>
+                  <td>Deploy to production</td>
+                  <td class="mono text-slate-400">devops</td>
+                  <td><span class="badge badge-done">done</span></td>
+                  <td><span class="badge badge-medium">medium</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Toasts -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Toasts</h2>
+
+        <div class="space-y-3">
+          <div class="toast-success rounded-lg border px-4 py-3 text-sm flex items-center gap-3" style="background: color-mix(in oklch, var(--color-hb-success-bg) 90%, transparent); border-color: var(--color-hb-success-border); color: var(--color-hb-success-text);">
+            <span>✓</span> Task created successfully.
+          </div>
+          <div class="toast-danger rounded-lg border px-4 py-3 text-sm flex items-center gap-3" style="background: color-mix(in oklch, var(--color-hb-danger-bg) 90%, transparent); border-color: var(--color-hb-danger-border); color: var(--color-hb-danger-text);">
+            <span>✕</span> Agent checkout failed — task is owned by another agent.
+          </div>
+          <div class="toast-warning rounded-lg border px-4 py-3 text-sm flex items-center gap-3" style="background: color-mix(in oklch, var(--color-hb-warning-bg) 90%, transparent); border-color: var(--color-hb-warning-border); color: var(--color-hb-warning-text);">
+            <span>⚠</span> Budget at 80% — focusing on critical tasks only.
+          </div>
+          <div class="toast-info rounded-lg border px-4 py-3 text-sm flex items-center gap-3" style="background: color-mix(in oklch, var(--color-hb-info-bg) 90%, transparent); border-color: var(--color-hb-info-border); color: var(--color-hb-info-text);">
+            <span>ℹ</span> Live mode active — auto-refreshing every 5 seconds.
+          </div>
+        </div>
+        <div class="card card-body mt-4">
+          <p class="text-xs mono text-slate-400 mb-1">Usage (fixed positioning in app)</p>
+          <pre class="text-sm text-slate-300 overflow-x-auto">&lt;div class="toast toast-success"&gt;…&lt;/div&gt;
+&lt;div class="toast toast-danger"&gt;…&lt;/div&gt;</pre>
+        </div>
+      </section>
+
+      <!-- Nav Tabs -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Navigation Tabs</h2>
+
+        <div class="space-y-4">
+          <nav class="nav-tabs w-fit" aria-label="Example">
+            <button class="nav-tab active">Tasks</button>
+            <button class="nav-tab">Runs</button>
+            <button class="nav-tab">Agents</button>
+            <button class="nav-tab">Projects</button>
+            <button class="nav-tab">Timeline</button>
+            <button class="nav-tab">Approvals</button>
+          </nav>
+          <div class="card card-body">
+            <p class="text-xs mono text-slate-400 mb-1">Usage</p>
+            <pre class="text-sm text-slate-300 overflow-x-auto">&lt;nav class="nav-tabs"&gt;
+  &lt;button class="nav-tab active"&gt;Tasks&lt;/button&gt;
+  &lt;button class="nav-tab"&gt;Runs&lt;/button&gt;
+&lt;/nav&gt;</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Live Status Indicators -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Live Indicators</h2>
+
+        <div class="space-y-4">
+          <div class="flex items-center gap-4">
+            <span class="heartbeat-dot"></span>
+            <span class="text-sm text-slate-300">Heartbeat dot — agent health indicator</span>
+            <code class="mono text-xs text-slate-500">.heartbeat-dot</code>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-900/50 border border-blue-700/60 px-2.5 py-1 text-xs text-blue-200">
+              <span class="status-running"></span>Live — auto-refreshing
+            </span>
+            <code class="mono text-xs text-slate-500">.status-running</code>
+          </div>
+        </div>
+      </section>
+
+      <!-- CSS Custom Properties Reference -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-800">Token Reference</h2>
+
+        <div class="card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Category</th>
+                  <th>Value / Purpose</th>
+                </tr>
+              </thead>
+              <tbody class="text-xs">
+                <tr><td class="mono">--color-hb-surface-base</td><td class="text-slate-400">Color</td><td class="text-slate-400">Darkest background (~slate-950)</td></tr>
+                <tr><td class="mono">--color-hb-surface-raised</td><td class="text-slate-400">Color</td><td class="text-slate-400">Card backgrounds (~slate-900)</td></tr>
+                <tr><td class="mono">--color-hb-surface-overlay</td><td class="text-slate-400">Color</td><td class="text-slate-400">Elevated surfaces (~slate-800)</td></tr>
+                <tr><td class="mono">--color-hb-border</td><td class="text-slate-400">Color</td><td class="text-slate-400">Default border (~slate-700)</td></tr>
+                <tr><td class="mono">--color-hb-text-primary</td><td class="text-slate-400">Color</td><td class="text-slate-400">Primary text (~slate-100)</td></tr>
+                <tr><td class="mono">--color-hb-text-secondary</td><td class="text-slate-400">Color</td><td class="text-slate-400">Secondary text (~slate-300)</td></tr>
+                <tr><td class="mono">--color-hb-text-muted</td><td class="text-slate-400">Color</td><td class="text-slate-400">Muted text (~slate-400)</td></tr>
+                <tr><td class="mono">--color-hb-primary</td><td class="text-slate-400">Color</td><td class="text-slate-400">Primary action (sky-500)</td></tr>
+                <tr><td class="mono">--color-hb-success</td><td class="text-slate-400">Color</td><td class="text-slate-400">Success/done (emerald-500)</td></tr>
+                <tr><td class="mono">--color-hb-danger</td><td class="text-slate-400">Color</td><td class="text-slate-400">Error/destructive (rose-600)</td></tr>
+                <tr><td class="mono">--color-hb-warning</td><td class="text-slate-400">Color</td><td class="text-slate-400">Warning/blocked (amber-500)</td></tr>
+                <tr><td class="mono">--color-hb-info</td><td class="text-slate-400">Color</td><td class="text-slate-400">Info/running (blue-500)</td></tr>
+                <tr><td class="mono">--font-sans</td><td class="text-slate-400">Typography</td><td class="text-slate-400">System UI sans-serif stack</td></tr>
+                <tr><td class="mono">--font-mono</td><td class="text-slate-400">Typography</td><td class="text-slate-400">Monospace for IDs, paths</td></tr>
+                <tr><td class="mono">--radius-sm / md / lg / xl / 2xl / full</td><td class="text-slate-400">Shape</td><td class="text-slate-400">4 / 6 / 8 / 12 / 16 / pill px</td></tr>
+                <tr><td class="mono">--shadow-sm / md / lg / xl</td><td class="text-slate-400">Shadow</td><td class="text-slate-400">Dark-optimized elevation shadows</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer class="pb-8 text-xs text-slate-500 text-center">
+        HeartBeat Design System — built with Tailwind v4 · <a href="/styleguide" class="hover:text-slate-300">styleguide</a>
+      </footer>
+
+    </div>
+  </body>
+</html>

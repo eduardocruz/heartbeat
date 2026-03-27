@@ -1,6 +1,6 @@
 {
   "name": "heartbeat",
-"version": "0.2.8",
+  "version": "0.2.9",
   "type": "module",
   "private": true,
   "bin": {
@@ -9,12 +9,16 @@
   "scripts": {
     "start": "bun run src/cli/index.ts start",
     "dev": "bun run src/server/index.ts",
+    "web:dev": "vite --config src/web/vite.config.ts",
+    "web:build": "vite build --config src/web/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "build:cli": "bun build --compile src/cli/index.ts --outfile dist/heartbeat",
-    "build:cli:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 src/cli/index.ts --outfile dist/heartbeat-darwin-arm64",
-    "build:cli:darwin-x64": "bun build --compile --target=bun-darwin-x64 src/cli/index.ts --outfile dist/heartbeat-darwin-x64",
-    "build:cli:linux-x64": "bun build --compile --target=bun-linux-x64 src/cli/index.ts --outfile dist/heartbeat-linux-x64",
+    "build:css": "tailwindcss -i src/web/styles/main.css -o src/web/styles/output.css --content 'src/web/**/*.html'",
+    "watch:css": "tailwindcss -i src/web/styles/main.css -o src/web/styles/output.css --content 'src/web/**/*.html' --watch",
+    "build:cli": "bun run build:css && bun build --compile src/cli/index.ts --outfile dist/heartbeat",
+    "build:cli:darwin-arm64": "bun run build:css && bun build --compile --target=bun-darwin-arm64 src/cli/index.ts --outfile dist/heartbeat-darwin-arm64",
+    "build:cli:darwin-x64": "bun run build:css && bun build --compile --target=bun-darwin-x64 src/cli/index.ts --outfile dist/heartbeat-darwin-x64",
+    "build:cli:linux-x64": "bun run build:css && bun build --compile --target=bun-linux-x64 src/cli/index.ts --outfile dist/heartbeat-linux-x64",
     "build:release": "bash scripts/build-release.sh"
   },
   "dependencies": {
@@ -26,8 +30,11 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.2.2",
     "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
-    "typescript": "^5.9.2"
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7"
   }
 }
