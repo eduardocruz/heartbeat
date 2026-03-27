@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { setupWorkspace, getLatestCommit, cleanupOldWorkspaces } from "./git";
+import { setupWorkspace, getLatestCommit, cleanupOldWorkspaces, markWorkspaceFailed } from "./git";
 import { reconcileBlockedDependents } from "../tasks/dependencies";
 
 type TaskRow = {
@@ -203,7 +203,7 @@ export class Executor {
     let workdir = "/tmp";
     if (task.repo_url) {
       try {
-        workdir = await setupWorkspace(task.repo_url, task.id, task.branch ?? "main");
+        workdir = await setupWorkspace(task.repo_url, task.id, task.branch ?? "main", task.agent ?? undefined);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.failTask(task.id, "in_progress", `workspace setup failed: ${message}`);
@@ -247,6 +247,9 @@ export class Executor {
       }
       this.completeRun(runId, exitCode, stdout, stderr, timedOut, commitHash);
       this.completeTask(task.id, "in_progress", exitCode, stdout, stderr, timedOut, timeoutSec, commitHash);
+      if ((timedOut || exitCode !== 0) && task.repo_url) {
+        markWorkspaceFailed(task.id);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.failRun(runId, message);
