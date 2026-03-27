@@ -112,6 +112,7 @@ describe("database and task API", () => {
       { version: 5, name: "add_runs_and_agent_projects" },
       { version: 6, name: "add_governance_approvals_and_budget" },
       { version: 7, name: "add_policy_config" },
+      { version: 8, name: "add_run_events" },
     ]);
 
     const taskStatuses = migratedDb
@@ -146,7 +147,7 @@ describe("database and task API", () => {
     const migrationCount = reopenedDb.query("SELECT COUNT(*) AS count FROM schema_migrations").get() as {
       count: number;
     };
-    expect(migrationCount.count).toBe(7);
+    expect(migrationCount.count).toBe(8);
     reopenedDb.close();
   });
 
@@ -1349,5 +1350,82 @@ describe("database and task API", () => {
 
       db.close();
     });
+  });
+
+  test("run events API: POST emits events and GET retrieves them", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    // Seed a task and run
+    db.query("INSERT INTO tasks (id, title, status, agent) VALUES (?, ?, ?, ?)").run("t1", "Event task", "done", "bot");
+    db.query("INSERT INTO runs (id, task_id, agent, status) VALUES (?, ?, ?, ?)").run("r1", "t1", "bot", "running");
+
+    // GET events on a fresh run returns empty array
+    const emptyRes = await app.request("/api/runs/r1/events");
+    expect(emptyRes.status).toBe(200);
+    const emptyEvents = (await emptyRes.json()) as Array<unknown>;
+    expect(emptyEvents).toEqual([]);
+
+    // POST an event
+    const postRes = await app.request("/api/runs/r1/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_type: "started", data: null }),
+    });
+    expect(postRes.status).toBe(201);
+    const created = (await postRes.json()) as { id: string; run_id: string; event_type: string };
+    expect(created.run_id).toBe("r1");
+    expect(created.event_type).toBe("started");
+
+    // POST a second event with data
+    await app.request("/api/runs/r1/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_type: "completed", data: { exit_code: 0 } }),
+    });
+
+    // GET events returns both in order
+    const listRes = await app.request("/api/runs/r1/events");
+    expect(listRes.status).toBe(200);
+    const events = (await listRes.json()) as Array<{ event_type: string; data: unknown }>;
+    expect(events.length).toBe(2);
+    expect(events[0].event_type).toBe("started");
+    expect(events[1].event_type).toBe("completed");
+
+    db.close();
+  });
+
+  test("run events API: returns 404 for unknown run", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    const getRes = await app.request("/api/runs/nonexistent/events");
+    expect(getRes.status).toBe(404);
+
+    const postRes = await app.request("/api/runs/nonexistent/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_type: "started" }),
+    });
+    expect(postRes.status).toBe(404);
+
+    db.close();
+  });
+
+  test("run events API: rejects missing event_type", async () => {
+    const db = createDatabase(":memory:");
+    const app = createApp(db);
+
+    db.query("INSERT INTO tasks (id, title, status, agent) VALUES (?, ?, ?, ?)").run("t1", "Event task", "done", "bot");
+    db.query("INSERT INTO runs (id, task_id, agent, status) VALUES (?, ?, ?, ?)").run("r1", "t1", "bot", "running");
+
+    const res = await app.request("/api/runs/r1/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: "no type" }),
+    });
+    expect(res.status).toBe(400);
+
+    db.close();
   });
 });

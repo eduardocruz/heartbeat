@@ -117,6 +117,13 @@ const migrations: Migration[] = [
       ensureColumn(db, "tasks", "tool", "TEXT");
     },
   },
+  {
+    version: 8,
+    name: "add_run_events",
+    apply(db) {
+      db.exec(schema.execution.runEvents);
+    },
+  },
 ];
 
 export function runMigrations(db: Database): void {
