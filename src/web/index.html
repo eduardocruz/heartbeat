@@ -60,6 +60,7 @@
             <button data-view="agents" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Agents</button>
             <button data-view="projects" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Projects</button>
             <button data-view="timeline" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Timeline</button>
+            <button data-view="approvals" class="view-tab rounded-md px-3 py-1.5 text-sm font-medium">Approvals</button>
           </nav>
         </div>
       </header>
@@ -218,6 +219,7 @@
                 <h2 class="text-lg font-semibold">Execution Runs</h2>
                 <p class="mt-1 text-sm text-slate-300">History of all task executions with output and timing.</p>
               </div>
+              <span id="runs-live-badge" class="hidden inline-flex items-center gap-1.5 rounded-full bg-blue-900/50 border border-blue-700/60 px-2.5 py-1 text-xs text-blue-200"><span class="status-running"></span>Live — auto-refreshing</span>
             </div>
           </div>
           <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
@@ -231,6 +233,7 @@
                     <th class="px-4 py-3">Exit</th>
                     <th class="px-4 py-3">Started</th>
                     <th class="px-4 py-3">Duration</th>
+                    <th class="px-4 py-3">Cost</th>
                   </tr>
                 </thead>
                 <tbody id="runs-table" class="divide-y divide-slate-800"></tbody>
@@ -253,6 +256,35 @@
           </div>
           <div id="timeline-content" class="space-y-4">
             <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-6 text-center text-slate-400">Loading timeline...</div>
+          </div>
+        </section>
+
+        <section id="approvals-view" class="hidden space-y-4">
+          <div class="rounded-xl border border-slate-700/70 bg-slate-900/75 p-4 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-semibold">Approvals</h2>
+                <p class="mt-1 text-sm text-slate-300">Pending and resolved agent approval requests.</p>
+              </div>
+              <div class="flex flex-wrap gap-2" id="approvals-filter-tabs"></div>
+            </div>
+          </div>
+          <div class="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/75 shadow-xl">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-800/90 text-xs uppercase tracking-wide text-slate-300">
+                  <tr>
+                    <th class="px-4 py-3">Reason</th>
+                    <th class="px-4 py-3">Agent</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Linked Task</th>
+                    <th class="px-4 py-3">Created</th>
+                    <th class="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="approvals-table" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
           </div>
         </section>
       </main>
@@ -316,6 +348,8 @@
         agentDetails: {},
         projects: [],
         runs: [],
+        approvals: [],
+        approvalsFilter: "pending",
         expandedTaskId: null,
         expandedAgentId: null,
         expandedRunId: null,
@@ -325,6 +359,7 @@
         showAllSessions: null,
         statusFilter: "all",
         pollHandle: null,
+        runsPollHandle: null,
       };
 
       const STATUS_TABS = ["all", "todo", "in_progress", "in_review", "done", "blocked", "failed", "cancelled"];
@@ -365,6 +400,7 @@
         document.getElementById("agents-view").classList.toggle("hidden", view !== "agents");
         document.getElementById("projects-view").classList.toggle("hidden", view !== "projects");
         document.getElementById("timeline-view").classList.toggle("hidden", view !== "timeline");
+        document.getElementById("approvals-view").classList.toggle("hidden", view !== "approvals");
 
         document.querySelectorAll(".view-tab").forEach((el) => {
           const active = el.dataset.view === view;
@@ -378,12 +414,20 @@
         else if (view === "runs") url.pathname = "/runs";
         else if (view === "projects") url.pathname = "/projects";
         else if (view === "timeline") url.pathname = "/timeline";
+        else if (view === "approvals") url.pathname = "/approvals";
         else url.pathname = "/";
         window.history.replaceState({}, "", url);
 
         if (view === "projects") loadProjects();
         if (view === "timeline") loadTimeline();
         if (view === "runs") loadRuns();
+        if (view === "approvals") loadApprovals();
+
+        // Stop runs polling when leaving runs view
+        if (view !== "runs" && state.runsPollHandle) {
+          clearInterval(state.runsPollHandle);
+          state.runsPollHandle = null;
+        }
       }
 
       function relativeTime(raw) {
@@ -736,10 +780,30 @@
         failed: "bg-rose-600 text-rose-100",
       };
 
+      function formatCostCents(cents) {
+        if (!cents || cents === 0) return "-";
+        const dollars = cents / 100;
+        return dollars < 0.01 ? "<$0.01" : `$${dollars.toFixed(2)}`;
+      }
+
+      function configureRunsPolling() {
+        const hasActiveRuns = (state.runs || []).some((r) => r.status === "running");
+        const badge = document.getElementById("runs-live-badge");
+        if (badge) badge.classList.toggle("hidden", !hasActiveRuns);
+        if (!hasActiveRuns && state.runsPollHandle) {
+          clearInterval(state.runsPollHandle);
+          state.runsPollHandle = null;
+        }
+        if (hasActiveRuns && !state.runsPollHandle) {
+          state.runsPollHandle = setInterval(loadRuns, 5000);
+        }
+      }
+
       async function loadRuns() {
         try {
           state.runs = await api("/api/runs?limit=100");
           renderRuns();
+          configureRunsPolling();
         } catch (error) {
           alert(error.message);
         }
@@ -751,13 +815,14 @@
         const runs = state.runs || [];
 
         if (runs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No execution runs yet.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400">No execution runs yet.</td></tr>';
           return;
         }
 
         for (const run of runs) {
           const tr = document.createElement("tr");
-          tr.className = "cursor-pointer hover:bg-slate-800/70";
+          const isRunning = run.status === "running";
+          tr.className = `cursor-pointer hover:bg-slate-800/70${isRunning ? " bg-blue-950/20" : ""}`;
           const badge = RUN_STATUS_BADGE[run.status] || "bg-slate-700 text-slate-100";
           tr.innerHTML = `
             <td class="px-4 py-3 font-medium">${escapeHtml(run.task_title || run.task_id)}</td>
@@ -766,6 +831,7 @@
             <td class="px-4 py-3 mono text-xs">${run.exit_code !== null ? run.exit_code : "-"}</td>
             <td class="px-4 py-3 text-slate-300">${relativeTime(run.started_at)}</td>
             <td class="px-4 py-3 text-slate-300">${formatDuration(run.started_at, run.completed_at)}</td>
+            <td class="px-4 py-3 text-emerald-300 mono text-xs">${formatCostCents(run.cost_cents)}</td>
           `;
           tr.onclick = () => {
             state.expandedRunId = state.expandedRunId === run.id ? null : run.id;
@@ -776,12 +842,13 @@
           if (state.expandedRunId === run.id) {
             const details = document.createElement("tr");
             details.innerHTML = `
-              <td colspan="6" class="space-y-3 bg-slate-950/90 px-4 py-4">
-                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3">
+              <td colspan="7" class="space-y-3 bg-slate-950/90 px-4 py-4">
+                <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-4">
                   <p><span class="text-slate-400">Run ID:</span> <span class="mono text-xs">${escapeHtml(run.id)}</span></p>
                   <p><span class="text-slate-400">Commit:</span> ${escapeHtml(run.commit_hash || "-")}</p>
                   <p><span class="text-slate-400">Timed Out:</span> ${run.timed_out ? "Yes" : "No"}</p>
-                  <p><span class="text-slate-400">Workspace:</span> <span class="mono text-xs">${escapeHtml(run.workspace_dir || "-")}</span></p>
+                  <p><span class="text-slate-400">Cost:</span> <span class="text-emerald-300 font-medium">${formatCostCents(run.cost_cents)}</span></p>
+                  <p class="sm:col-span-2"><span class="text-slate-400">Workspace:</span> <span class="mono text-xs">${escapeHtml(run.workspace_dir || "-")}</span></p>
                 </div>
                 <div class="grid gap-3 lg:grid-cols-2">
                   <div>
@@ -909,6 +976,10 @@
                   </div>`
                 : '';
 
+              const budgetHtml = details.budget_limit_cents
+                ? `<p><span class="text-slate-400">Budget:</span> <span class="text-emerald-300 font-medium">$${(details.budget_limit_cents / 100).toFixed(2)} limit</span></p>`
+                : '';
+
               detailsHtml = `
                 <div class="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-3 mb-3">
                   <p><span class="text-slate-400">ID:</span> <span class="mono text-xs">${escapeHtml(details.id)}</span></p>
@@ -916,6 +987,7 @@
                   <p><span class="text-slate-400">Command:</span> <span class="mono text-xs">${escapeHtml(details.command_template)}</span></p>
                   ${details.heartbeat_repo ? `<p><span class="text-slate-400">Repo:</span> <span class="mono text-xs">${escapeHtml(details.heartbeat_repo)}</span></p>` : ''}
                   <p><span class="text-slate-400">Created:</span> ${relativeTime(details.created_at)}</p>
+                  ${budgetHtml}
                 </div>
                 ${details.description ? `<p class="text-sm text-slate-300 mb-3">${escapeHtml(details.description)}</p>` : ''}
                 <div>
@@ -962,6 +1034,122 @@
               await loadAgents();
             } catch (error) {
               alert(error.message);
+            }
+          };
+        });
+      }
+
+      const APPROVAL_STATUS_BADGE = {
+        pending: "bg-amber-500 text-amber-100",
+        approved: "bg-emerald-600 text-emerald-100",
+        denied: "bg-rose-600 text-rose-100",
+      };
+
+      const APPROVALS_FILTER_TABS = ["pending", "approved", "denied", "all"];
+
+      function renderApprovalsFilterTabs() {
+        const root = document.getElementById("approvals-filter-tabs");
+        if (!root) return;
+        root.innerHTML = "";
+        for (const f of APPROVALS_FILTER_TABS) {
+          const btn = document.createElement("button");
+          const active = state.approvalsFilter === f;
+          btn.className = `rounded-md px-3 py-1.5 text-sm font-medium ${
+            active ? "bg-sky-500 text-slate-900" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+          }`;
+          btn.textContent = f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1);
+          btn.onclick = () => {
+            state.approvalsFilter = f;
+            renderApprovalsFilterTabs();
+            loadApprovals();
+          };
+          root.appendChild(btn);
+        }
+      }
+
+      async function loadApprovals() {
+        renderApprovalsFilterTabs();
+        const query = state.approvalsFilter === "all" ? "" : `?status=${state.approvalsFilter}`;
+        try {
+          state.approvals = await api(`/api/approvals${query}`);
+          renderApprovals();
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      function renderApprovals() {
+        const tbody = document.getElementById("approvals-table");
+        if (!tbody) return;
+        tbody.innerHTML = "";
+        const approvals = state.approvals || [];
+
+        if (approvals.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">No ${state.approvalsFilter === "all" ? "" : state.approvalsFilter + " "}approvals found.</td></tr>`;
+          return;
+        }
+
+        for (const approval of approvals) {
+          const badge = APPROVAL_STATUS_BADGE[approval.status] || "bg-slate-700 text-slate-100";
+          const isPending = approval.status === "pending";
+          const actionsHtml = isPending
+            ? `<div class="flex gap-2">
+                <button class="approval-approve rounded border border-emerald-600 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-900/40" data-id="${escapeHtml(approval.id)}">Approve</button>
+                <button class="approval-deny rounded border border-rose-700 px-2 py-1 text-xs text-rose-200 hover:bg-rose-900/40" data-id="${escapeHtml(approval.id)}">Deny</button>
+              </div>`
+            : `<span class="text-xs text-slate-500">${approval.resolved_by ? escapeHtml(approval.resolved_by) : "—"}</span>`;
+
+          const linkedHtml = approval.task_id
+            ? `<span class="mono text-xs text-slate-400">${escapeHtml(approval.task_id.slice(0, 8))}…</span>`
+            : approval.run_id
+              ? `<span class="mono text-xs text-slate-400">run:${escapeHtml(approval.run_id.slice(0, 8))}…</span>`
+              : "—";
+
+          const tr = document.createElement("tr");
+          tr.className = `${isPending ? "bg-amber-950/10" : ""}`;
+          tr.innerHTML = `
+            <td class="px-4 py-3 max-w-xs">
+              <p class="text-sm text-slate-200 truncate" title="${escapeHtml(approval.reason)}">${escapeHtml(approval.reason)}</p>
+            </td>
+            <td class="px-4 py-3 mono text-xs text-slate-300">${escapeHtml(approval.agent_id.slice(0, 8))}…</td>
+            <td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge}">${escapeHtml(approval.status)}</span></td>
+            <td class="px-4 py-3">${linkedHtml}</td>
+            <td class="px-4 py-3 text-slate-300 text-xs">${relativeTime(approval.created_at)}</td>
+            <td class="px-4 py-3">${actionsHtml}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        tbody.querySelectorAll(".approval-approve").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.dataset.id;
+            try {
+              btn.disabled = true;
+              await api(`/api/approvals/${id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "approved", resolved_by: "operator" }),
+              });
+              await loadApprovals();
+            } catch (error) {
+              alert(error.message);
+              btn.disabled = false;
+            }
+          };
+        });
+
+        tbody.querySelectorAll(".approval-deny").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.dataset.id;
+            try {
+              btn.disabled = true;
+              await api(`/api/approvals/${id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "denied", resolved_by: "operator" }),
+              });
+              await loadApprovals();
+            } catch (error) {
+              alert(error.message);
+              btn.disabled = false;
             }
           };
         });
@@ -1594,7 +1782,14 @@
       (async function init() {
         renderStatusTabs();
         const path = window.location.pathname;
-        openView(path === "/agents" ? "agents" : path === "/runs" ? "runs" : path === "/projects" ? "projects" : path === "/timeline" ? "timeline" : "tasks");
+        openView(
+          path === "/agents" ? "agents"
+          : path === "/runs" ? "runs"
+          : path === "/projects" ? "projects"
+          : path === "/timeline" ? "timeline"
+          : path === "/approvals" ? "approvals"
+          : "tasks"
+        );
         await loadAgents();
         await loadTasks();
       })();

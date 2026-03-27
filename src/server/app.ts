@@ -33,6 +33,7 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   app.get("/runs", (c) => c.html(appShellHtml));
   app.get("/projects", (c) => c.html(appShellHtml));
   app.get("/timeline", (c) => c.html(appShellHtml));
+  app.get("/approvals", (c) => c.html(appShellHtml));
 
   app.notFound((c) => {
     if (isApiRequest(new URL(c.req.url).pathname)) {
