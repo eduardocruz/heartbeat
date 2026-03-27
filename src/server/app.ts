@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { extname } from "node:path";
 import { Hono } from "hono";
 import { getDb } from "../db";
 import { Executor } from "../executor";
@@ -22,6 +23,18 @@ const appShellHtml = indexHtml.toString();
 const styleguideShellHtml = styleguideHtml.toString();
 const appCssText = appCss.toString();
 
+const STATIC_CONTENT_TYPES: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+};
+
 type AppOptions = {
   executor?: Executor;
   scheduler?: Scheduler;
@@ -35,6 +48,39 @@ export function createApp(db: Database = getDb(), options: AppOptions | Executor
   const startedAt = resolvedOptions.startedAt ?? new Date().toISOString();
 
   app.get("/app.css", (c) => c.body(appCssText, 200, { "Content-Type": "text/css; charset=utf-8" }));
+  app.get("/app/*", async (c) => {
+    const pathname = new URL(c.req.url).pathname;
+    const relativePath = pathname.slice("/app/".length);
+    if (!relativePath || relativePath.includes("..")) {
+      return c.text("Not found", 404);
+    }
+
+    const file = Bun.file(new URL(`../web/app/${relativePath}`, import.meta.url));
+    const exists = await file.exists();
+    if (!exists) {
+      return c.text("Not found", 404);
+    }
+
+    const type = STATIC_CONTENT_TYPES[extname(relativePath).toLowerCase()] || "application/octet-stream";
+    return new Response(file, { status: 200, headers: { "Content-Type": type } });
+  });
+
+  app.get("/assets/*", async (c) => {
+    const pathname = new URL(c.req.url).pathname;
+    const relativePath = pathname.slice("/assets/".length);
+    if (!relativePath || relativePath.includes("..")) {
+      return c.text("Not found", 404);
+    }
+
+    const file = Bun.file(new URL(`../web/dist/assets/${relativePath}`, import.meta.url));
+    const exists = await file.exists();
+    if (!exists) {
+      return c.text("Not found", 404);
+    }
+
+    const type = STATIC_CONTENT_TYPES[extname(relativePath).toLowerCase()] || "application/octet-stream";
+    return new Response(file, { status: 200, headers: { "Content-Type": type } });
+  });
   app.get("/styleguide", (c) => c.html(styleguideShellHtml));
   app.get("/", (c) => c.html(appShellHtml));
   app.get("/agents", (c) => c.html(appShellHtml));

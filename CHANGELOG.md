@@ -2,6 +2,22 @@
 
 All notable changes to HeartBeat are documented here.
 
+## [0.2.9] — 2026-03-27
+
+### Added
+- **UI/UX Phase 5 complete**: delivered the full frontend workstream bundle from [SUP-61](/SUP/issues/SUP-61) through [SUP-65](/SUP/issues/SUP-65), including the design system foundation, component-based SPA architecture, core UX improvements, visual polish, and accessibility/responsiveness upgrades.
+- **Vite-powered web pipeline**: introduced `web:dev` and `web:build` scripts with the corresponding Vite config for a maintainable frontend build loop.
+- **Structured web app modules**: replaced the monolithic inline script path with modular app code under `src/web/app/*` for views, state handling, and shared utilities.
+
+### Changed
+- **Web shell and routing integration**: updated server/static wiring and web entry assets to serve compiled app and styles as first-class artifacts.
+- **Dashboard interaction polish**: consistent status/action affordances, improved loading and empty states, stronger keyboard support, and improved responsive table behavior.
+
+### Fixed
+- **Accessibility baseline**: improved skip-link and landmark navigation, modal focus management, keyboard row expansion behavior, and contrast/focus handling across key views.
+
+---
+
 ## [0.2.8] — 2026-03-27
 
 ### Added

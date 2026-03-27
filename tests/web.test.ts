@@ -198,15 +198,43 @@ function createFetch(overrides: Record<string, unknown> = {}) {
 
 async function loadWebApp(fetchOverrides: Record<string, unknown> = {}) {
   const html = readFileSync(join(import.meta.dir, "..", "src", "web", "index.html"), "utf8");
-  const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
+  const scriptMatch = html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"[^>]*><\/script>/);
   if (!scriptMatch) {
-    throw new Error("Expected inline script in src/web/index.html");
+    throw new Error("Expected module script in src/web/index.html");
   }
+
+  const entrySrc = scriptMatch[1];
+  const entryPath = join(import.meta.dir, "..", "src", "web", entrySrc.replace(/^\//, ""));
+  const apiClient = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "api-client.js"), "utf8").replace(/^export /gm, "");
+  const constants = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "constants.js"), "utf8").replace(/^export /gm, "");
+  const router = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "router.js"), "utf8").replace(/^export /gm, "");
+  const approvalsView = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "views", "approvals-view.js"), "utf8")
+    .replace(/^\s*import\s+[^;]+;\n/gm, "")
+    .replace(/^export /gm, "");
+  const agentsView = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "views", "agents-view.js"), "utf8")
+    .replace(/^\s*import\s+[^;]+;\n/gm, "")
+    .replace(/^export /gm, "");
+  const projectsView = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "views", "projects-view.js"), "utf8")
+    .replace(/^\s*import\s+[^;]+;\n/gm, "")
+    .replace(/^export /gm, "");
+  const runsView = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "views", "runs-view.js"), "utf8")
+    .replace(/^\s*import\s+[^;]+;\n/gm, "")
+    .replace(/^export /gm, "");
+  const tasksController = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "views", "tasks-controller.js"), "utf8")
+    .replace(/^\s*import\s+[^;]+;\n/gm, "")
+    .replace(/^export /gm, "");
+  const timelineView = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "views", "timeline-view.js"), "utf8")
+    .replace(/^\s*import\s+[^;]+;\n/gm, "")
+    .replace(/^export /gm, "");
+  const uiUtils = readFileSync(join(import.meta.dir, "..", "src", "web", "app", "ui-utils.js"), "utf8").replace(/^export /gm, "");
+  const mainScript = readFileSync(entryPath, "utf8").replace(/^\s*import\s+[^;]+;\n/gm, "");
+  const bundledScript = `${apiClient}\n${constants}\n${router}\n${uiUtils}\n${agentsView}\n${approvalsView}\n${projectsView}\n${runsView}\n${tasksController}\n${timelineView}\n${mainScript}`;
 
   const document = createDocument();
   const window = {
     location: { href: "http://localhost/agents", pathname: "/agents" },
-    history: { replaceState() {} },
+    history: { replaceState() {}, pushState() {} },
+    addEventListener() {},
   };
 
   const runScript = new Function(
@@ -219,7 +247,7 @@ async function loadWebApp(fetchOverrides: Record<string, unknown> = {}) {
     "setInterval",
     "clearInterval",
     "setTimeout",
-    `${scriptMatch[1]}\nreturn { state, renderAgents, renderTasks, renderRuns, renderApprovals };`,
+    `${bundledScript}\nreturn { state, renderAgents, renderTasks, renderRuns, renderApprovals };`,
   );
 
   const app = runScript(

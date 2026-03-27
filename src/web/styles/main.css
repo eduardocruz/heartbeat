@@ -124,6 +124,29 @@ body {
   background: radial-gradient(circle at top, #1f2937 0%, #0b1020 45%, #05070f 100%);
   font-family: var(--font-sans);
   color: var(--color-hb-text-primary);
+  line-height: 1.5;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 100;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-hb-primary);
+  background: var(--color-hb-surface-base);
+  color: var(--color-hb-text-primary);
+  padding: 0.5rem 0.75rem;
+  transition: top 140ms ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+:where(a, button, input, select, textarea, [role="button"]):focus-visible {
+  outline: 2px solid var(--color-hb-primary);
+  outline-offset: 2px;
 }
 
 /* ==========================================================================
@@ -145,11 +168,14 @@ body {
     font-weight: 600;
     line-height: 1.25;
     cursor: pointer;
-    transition: background-color 150ms ease, opacity 150ms ease;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease, transform 140ms ease;
   }
   .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .btn:not(:disabled):active {
+    transform: translateY(1px);
   }
 
   /* Primary — sky blue */
@@ -217,6 +243,7 @@ body {
     font-weight: 500;
     line-height: 1.5;
     white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
   }
 
   .badge-todo     { background-color: oklch(23% 0.025 265); color: var(--color-hb-text-secondary); }
@@ -377,7 +404,7 @@ body {
     font-weight: 500;
     color: var(--color-hb-text-muted);
     cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease;
+    transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 140ms ease;
   }
   .nav-tab:hover {
     color: var(--color-hb-text-primary);
@@ -386,6 +413,38 @@ body {
   .nav-tab.active {
     background-color: var(--color-hb-surface-muted);
     color: var(--color-hb-text-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--color-hb-primary) 65%, transparent);
+  }
+
+  .view-tab {
+    position: relative;
+    border: 1px solid transparent;
+    color: var(--color-hb-text-secondary);
+    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+  }
+  .view-tab:hover {
+    color: var(--color-hb-text-primary);
+    background-color: color-mix(in oklch, var(--color-hb-surface-overlay) 88%, transparent);
+  }
+  .view-tab.active {
+    color: var(--color-hb-text-primary);
+    border-color: color-mix(in oklch, var(--color-hb-primary) 45%, transparent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-hb-primary) 40%, transparent) 0%,
+      color-mix(in oklch, var(--color-hb-surface-overlay) 90%, transparent) 100%
+    );
+  }
+
+  .view-tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: -0.2rem;
+    height: 2px;
+    border-radius: 9999px;
+    background-color: color-mix(in oklch, var(--color-hb-primary) 75%, white);
   }
 }
 
@@ -417,6 +476,14 @@ body {
     box-shadow: 0 0 0 rgba(34, 197, 94, 0.6);
     animation: hb-heartbeat 1.6s infinite;
   }
+
+  .row-interactive {
+    transition: background-color 150ms ease;
+  }
+
+  .view-enter {
+    animation: hb-view-enter 170ms ease-out;
+  }
 }
 
 /* ==========================================================================
@@ -432,4 +499,20 @@ body {
   0%   { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
   70%  { transform: scale(1);   box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
   100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+@keyframes hb-view-enter {
+  0%   { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .responsive-table {
+    font-size: 0.8125rem;
+  }
+
+  .responsive-table th,
+  .responsive-table td {
+    padding: 0.625rem 0.75rem;
+  }
 }
